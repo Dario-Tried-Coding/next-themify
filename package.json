@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "prerelease": "turbo lint test build --filter=@dariotriedcoding/next-themes",
-    "release": "pnpm run prerelease && changeset publish",
+    "release": "pnpm run prerelease && cd ./packages/next-themes && changeset publish",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
