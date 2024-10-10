@@ -2,9 +2,11 @@
   "name": "next-themes",
   "private": true,
   "scripts": {
+    "prerelease": "pnpm run format && turbo run lint test build --filter=@dariotriedcoding/next-themes",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "test": "turbo test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {

@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "description": "A Next.js library to acheive custom and easy-to-control themed interfaces.",
   "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "tsc"
+  },
   "keywords": [
     "next.js",
     "themes",
@@ -25,5 +34,24 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@changesets/cli": "^2.27.9",
+    "tsup": "^8.3.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.2"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "import": "./dist/types.mjs",
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  }
 }
