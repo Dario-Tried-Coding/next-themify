@@ -4,11 +4,11 @@ on:
   push:
     branches: ['main']
     paths:
-      - 'packages/next-themes/**'
+      - 'packages/next-themify/**'
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'packages/next-themes/**'
+      - 'packages/next-themify/**'
 
 jobs:
   build:
