@@ -1,5 +1,5 @@
 {
-  "name": "@dariotriedcoding/next-themes",
+  "name": "@dariotriedcoding/next-themify",
   "version": "0.0.1",
   "description": "A Next.js library to acheive custom and easy-to-control themed interfaces.",
   "private": false,
