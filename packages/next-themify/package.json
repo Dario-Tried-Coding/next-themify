@@ -14,14 +14,14 @@
   },
   "keywords": [
     "next.js",
-    "themes",
+    "theming",
     "react",
     "typescript"
   ],
   "author": "dariotriedcoding",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Dario-Tried-Coding/next-themes"
+    "url": "https://github.com/Dario-Tried-Coding/next-themify"
   },
   "license": "MIT",
   "prettier": {

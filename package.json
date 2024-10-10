@@ -1,8 +1,8 @@
 {
-  "name": "next-themes",
+  "name": "next-themify",
   "private": true,
   "scripts": {
-    "prerelease": "turbo lint test build --filter=@dariotriedcoding/next-themes",
+    "prerelease": "turbo lint test build --filter=@dariotriedcoding/next-themify",
     "release": "pnpm run prerelease && changeset publish",
     "build": "turbo build",
     "dev": "turbo dev",
