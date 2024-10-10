@@ -2,7 +2,7 @@
   "name": "next-themes",
   "private": true,
   "scripts": {
-    "prerelease": "pnpm run format && turbo lint test build --filter=@dariotriedcoding/next-themes",
+    "prerelease": "turbo lint test build --filter=@dariotriedcoding/next-themes",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
