@@ -1,0 +1,29 @@
+{
+  "name": "@dariotriedcoding/next-themes",
+  "version": "0.0.0",
+  "description": "A Next.js library to acheive custom and easy-to-control themed interfaces.",
+  "private": false,
+  "keywords": [
+    "next.js",
+    "themes",
+    "react",
+    "typescript"
+  ],
+  "author": "dariotriedcoding",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dario-Tried-Coding/next-themes"
+  },
+  "license": "MIT",
+  "prettier": {
+    "trailingComma": "es5",
+    "tabWidth": 2,
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 150,
+    "jsxSingleQuote": true
+  },
+  "files": [
+    "dist"
+  ]
+}
