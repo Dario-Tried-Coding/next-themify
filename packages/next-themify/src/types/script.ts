@@ -1,4 +1,4 @@
-import { Custom_Mode_Strat, Mono_Strat, Multi_Strat } from '.'
+import { Custom_Mode_Strat, Light_Dark_Mode_Opts, Mono_Strat, Multi_Strat } from '.'
 import { DEFAULT, LIGHT_DARK, MODES, STRATS } from '../constants'
 import { AtLeastOne } from './utils'
 
@@ -8,12 +8,7 @@ type Mode_Strats =
   | {
       strategy: LIGHT_DARK
       enableSystem?: boolean
-      keys: {
-        light?: string
-        dark?: string
-        system?: string
-        custom?: string[]
-      }
+      keys: Light_Dark_Mode_Opts
       default: string
       fallback?: string
     }
