@@ -17,34 +17,14 @@ export function script(params) {
   // ---------------------------------------------------------------------
 
   /**
-   * Accede in modo sicuro a una proprietà annidata di un oggetto.
-   *
-   * @param {Record<string, any> | undefined} obj - L'oggetto da cui accedere alla proprietà.
-   * @param {string} path - Il percorso della proprietà da accedere, formattato come stringa (es. "user.name").
-   * @returns {*} - Il valore della proprietà se esiste, altrimenti `undefined`.
+   * @typedef {Record<string, any>} Generic_Obj - A generic object
    */
-  function safeGet(obj, path) {
-    if (!obj || typeof obj !== 'object') {
-      return undefined
-    }
-
-    const keys = path.split('.')
-
-    let current = obj
-    for (const key of keys) {
-      if (current && typeof current === 'object' && key in current) {
-        current = current[key]
-      } else {
-      }
-    }
-    return current
-  }
 
   /**
    * Parses a JSON string and returns the corresponding object if valid.
    *
    * @param {string | undefined | null} string - The JSON string to parse.
-   * @returns {Record<string, any>|undefined} The parsed object if the input is a valid JSON object string, otherwise undefined.
+   * @returns {Generic_Obj | undefined} The parsed object if the input is a valid JSON object string, otherwise undefined.
    */
   function parse_JsonToObj(string) {
     if (typeof string !== 'string' || string.trim() === '') return undefined
@@ -60,8 +40,8 @@ export function script(params) {
   /**
    * Compares two objects to determine if they are the same.
    *
-   * @param {Object} obj1 - The first object to compare.
-   * @param {Object} obj2 - The second object to compare.
+   * @param {Generic_Obj} obj1 - The first object to compare.
+   * @param {Generic_Obj} obj2 - The second object to compare.
    * @returns {boolean} `true` if the objects are the same, otherwise `false`.
    */
   function isSameObj(obj1, obj2) {
@@ -73,9 +53,7 @@ export function script(params) {
     if (keys1.length !== keys2.length) return false
 
     for (const key of keys1) {
-      // @ts-expect-error
       const val1 = obj1[key]
-      // @ts-expect-error
       const val2 = obj2[key]
 
       const areObjects = typeof val1 === 'object' && val1 !== null && typeof val2 === 'object' && val2 !== null
@@ -108,33 +86,33 @@ export function script(params) {
   // ---------------------------------------------------------------------
 
   /**
-   * Retrieves the storage configuration from local storage, parses it, and validates it.
-   *
-   * @return {Record<string, any> | undefined} The theme validation info, including the parsed storage configuration and a boolean indicating if the validation was successful.
+   * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the storage config functions.
+   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} Theme_Validation The theme validation info.
    */
-  function get_SC() {
+
+  /**
+   * Retrieves the storage configuration from local storage and parses it if valid object.
+   * @param {SC_Opts} [opts] The options object.
+   * @return {Theme_Validation} The parsed object if the stored value is a valid JSON object string, otherwise undefined.
+   */
+  function get_SC(opts) {
     const value = localStorage.getItem(config_SK)
     const parsed = parse_JsonToObj(value)
-    return parsed
+    const validation = validate_SC(parsed, { fallback: opts?.fallback, verbose: opts?.verbose })
+    return validation
   }
 
   /**
-   * @typedef {{config: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} Theme_Validation The theme validation info.
-   */
-
-  /**
    * Safely parses and validates the received string, returning a valid StorageConfig (invalid keys are replaced with corresponding fallback/default theme's key) and a boolean indicating if the string validated successfully.
-   * @param {Record<string, any> | undefined} obj The object to validate.
-   * @param {Object} [opts] The options object.
-   * @param {Storage_Config} [opts.fallback] The fallback value to use if the string is not valid. MUST BE VALID!!!
-   * @param {boolean} [opts.verbose] Whether to log the validation result.
+   * @param {Generic_Obj | undefined} obj The object to validate.
+   * @param {SC_Opts} [opts] The options object.
    * @return {Theme_Validation} The theme validation info.
    */
   function validate_SC(obj, opts) {
     const fallback_SC = opts?.fallback || default_SC
-    if (!obj) return { config: fallback_SC, passed: false }
+    if (!obj) return { SC: fallback_SC, passed: false }
 
-    /** @type {Theme_Validation['config']} */ // @ts-expect-error
+    /** @type {Theme_Validation['SC']} */ // @ts-expect-error
     const valid_SC = {}
     let passed = true
     /** @type {NonNullable<Theme_Validation['validation_results']>} */ // @ts-expect-error
@@ -169,9 +147,29 @@ export function script(params) {
       }
     }
 
-    if (opts?.verbose) return { config: valid_SC, passed, validation_results }
-    return { config: valid_SC, passed }
+    if (opts?.verbose) return { SC: valid_SC, passed, validation_results }
+    return { SC: valid_SC, passed }
   }
 
-  console.log(validate_SC(get_SC(), {verbose: true}))
+  /**
+   * @param {Storage_Config} obj
+   * @param {object} [opts]
+   * @param {boolean} [opts.force]
+   */
+  function set_SC(obj, opts) {
+    const { SC: current_SC, passed } = get_SC()
+
+    const new_SC = { ...current_SC }
+
+    // @ts-expect-error
+    for (const key in obj) new_SC[key] = obj[key]
+
+    const must_force = opts?.force
+    const must_update = must_force || !passed || (passed && !isSameObj(new_SC, current_SC))
+
+    if (!must_update) return
+
+    localStorage.setItem(config_SK, JSON.stringify(new_SC))
+    // TODO: trigger custom storage event
+  }
 }
