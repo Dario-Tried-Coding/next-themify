@@ -3,12 +3,13 @@ import { AtLeastOne } from './utils'
 
 type Mono_Opt = string
 type Custom_Opts = string[]
-type Mode_Opts = AtLeastOne<{
+type Light_Dark_Mode_Opts = {
   light?: string
   dark?: string
   system?: string
   custom?: string[]
-}>
+}
+type Mode_Opts = AtLeastOne<Light_Dark_Mode_Opts>
 
 export type Keys =
   | AtLeastOne<{
@@ -21,6 +22,28 @@ export type Keys =
 export type Mono_Strat<String extends string> = { strategy: MONO; key: String }
 export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] }
 export type Custom_Mode_Strat<Keys extends string[]> = { strategy: CUSTOM; keys: Keys; default: Keys[number] }
+
+type Construct_Light_Dark_Mode_Keys<Keys extends Mode_Opts, Include_System extends 'exclude_system' | undefined = undefined> = {
+  [Key in keyof Light_Dark_Mode_Opts as Key extends 'custom'
+    ? Keys[Key] extends string[]
+      ? Key
+      : never
+    : Key extends 'system'
+      ? Include_System extends 'exclude_system'
+        ? never
+        : Key
+      : Key]-?: Keys[Key] extends string | string[]
+    ? Keys[Key]
+    : Key extends 'light'
+      ? LIGHT
+      : Key extends 'dark'
+        ? DARK
+        : Key extends 'system'
+          ? SYSTEM
+          : Key extends 'custom'
+            ? Keys[Key]
+            : never
+}
 type Light_Dark_Mode_Strat<Keys extends Mode_Opts> = {
   strategy: LIGHT_DARK
   fallback?:
@@ -35,19 +58,15 @@ type Light_Dark_Mode_Strat<Keys extends Mode_Opts> = {
         | (Keys['dark'] extends string ? Keys['dark'] : DARK)
         | (Keys['system'] extends string ? Keys['system'] : SYSTEM)
         | (Keys['custom'] extends string[] ? Keys['custom'][number] : never)
-      keys: {
-        [Key in keyof Keys as Keys[Key] extends string | string[] ? Key : never]-?: Keys[Key]
-      }
+      keys: Construct_Light_Dark_Mode_Keys<Keys>
     }
   | {
-      enableSystem?: false
+      enableSystem: false
       default:
         | (Keys['light'] extends string ? Keys['light'] : LIGHT)
         | (Keys['dark'] extends string ? Keys['dark'] : DARK)
         | (Keys['custom'] extends string[] ? Keys['custom'][number] : never)
-      keys: {
-        [Key in keyof Keys as Keys[Key] extends string | string[] ? (Key extends 'system' ? never : Key) : never]-?: Keys[Key]
-      }
+      keys: Construct_Light_Dark_Mode_Keys<Keys, 'exclude_system'>
     }
 )
 

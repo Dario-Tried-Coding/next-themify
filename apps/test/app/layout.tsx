@@ -15,13 +15,27 @@ export default function RootLayout({
   const keys = {
     mode: {
       light: 'custom-light',
+      custom: ['pumpkin']
     },
   } as const satisfies Keys
 
   return (
     <html lang='en'>
       <body>
-        <ThemeProvider<typeof keys> config={{ mode: { strategy: 'light_dark', keys: {light: 'custom-light'}, default: 'system', enableSystem: true }, theme: { strategy: 'mono', key: 'default' } }}>
+        <ThemeProvider<typeof keys>
+          config={{
+            mode: {
+              strategy: 'light_dark',
+              keys: {
+                light: 'custom-light',
+                dark: 'dark',
+                custom: ['pumpkin']
+              },
+              enableSystem: false,
+              default: 'pumpkin'
+            },
+          }}
+        >
           {children}
         </ThemeProvider>
       </body>
