@@ -6,8 +6,8 @@ type Mono_Opt = string
 type Custom_Opts = string[]
 
 export type Light_Dark_Mode_Opts = {
-  light?: string
-  dark?: string
+  light: string
+  dark: string
   system?: string
   custom?: string[]
 }
@@ -47,31 +47,47 @@ type Light_Dark_Mode_Keys<Keys extends Mode_Opts, Include_System extends 'exclud
             ? Keys[Key]
             : never
 }
-type Light_Dark_Mode_Strat<Keys extends Mode_Opts> = {
-  strategy: LIGHT_DARK
-  fallback?:
-    | (Keys[LIGHT] extends string ? Keys[LIGHT] : LIGHT)
-    | (Keys[DARK] extends string ? Keys[DARK] : DARK)
-    | (Keys[CUSTOM] extends string[] ? Keys[CUSTOM][number] : never)
-} & (
-  | {
-      enableSystem: true
-      default:
-        | (Keys[LIGHT] extends string ? Keys[LIGHT] : LIGHT)
-        | (Keys[DARK] extends string ? Keys[DARK] : DARK)
-        | (Keys[SYSTEM] extends string ? Keys[SYSTEM] : SYSTEM)
-        | (Keys[CUSTOM] extends string[] ? Keys[CUSTOM][number] : never)
-      keys: Light_Dark_Mode_Keys<Keys>
-    }
-  | {
-      enableSystem: false
-      default:
+type Light_Dark_Mode_Strat<Keys extends Mode_Opts | undefined> = Keys extends Mode_Opts
+  ? {
+      strategy: LIGHT_DARK
+      fallback?:
         | (Keys[LIGHT] extends string ? Keys[LIGHT] : LIGHT)
         | (Keys[DARK] extends string ? Keys[DARK] : DARK)
         | (Keys[CUSTOM] extends string[] ? Keys[CUSTOM][number] : never)
-      keys: Light_Dark_Mode_Keys<Keys, 'exclude_system'>
-    }
-)
+    } & (
+      | {
+          enableSystem: true
+          default:
+            | (Keys[LIGHT] extends string ? Keys[LIGHT] : LIGHT)
+            | (Keys[DARK] extends string ? Keys[DARK] : DARK)
+            | (Keys[SYSTEM] extends string ? Keys[SYSTEM] : SYSTEM)
+            | (Keys[CUSTOM] extends string[] ? Keys[CUSTOM][number] : never)
+          keys: Light_Dark_Mode_Keys<Keys>
+        }
+      | {
+          enableSystem: false
+          default:
+            | (Keys[LIGHT] extends string ? Keys[LIGHT] : LIGHT)
+            | (Keys[DARK] extends string ? Keys[DARK] : DARK)
+            | (Keys[CUSTOM] extends string[] ? Keys[CUSTOM][number] : never)
+          keys: Light_Dark_Mode_Keys<Keys, 'exclude_system'>
+        }
+    )
+  : {
+      strategy: LIGHT_DARK
+      fallback?: LIGHT | DARK
+    } & (
+      | {
+          enableSystem: true
+          default: LIGHT | DARK | SYSTEM
+          keys: { light: LIGHT; dark: DARK; system: SYSTEM }
+        }
+      | {
+          enableSystem: false
+          default: LIGHT | DARK
+          keys: { light: LIGHT; dark: DARK }
+        }
+    )
 
 // CONFIG -------------------------------------------------------------------
 type Construct_Prop<K extends NonNullable<Keys_Config>['theme']> = K extends undefined
@@ -83,7 +99,7 @@ type Construct_Prop<K extends NonNullable<Keys_Config>['theme']> = K extends und
       : never
 
 type Construct_Mode<K extends NonNullable<Keys_Config>['mode']> = K extends undefined
-  ? Mono_Strat<DEFAULT>
+  ? Mono_Strat<DEFAULT> | Light_Dark_Mode_Strat<undefined>
   : K extends Mono_Opt
     ? Mono_Strat<K>
     : K extends Custom_Opts

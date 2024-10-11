@@ -7,7 +7,7 @@ type Mode_Strats =
   | Mono_Strat<string>
   | {
       strategy: LIGHT_DARK
-      enableSystem?: boolean
+      enableSystem: boolean
       keys: Light_Dark_Mode_Opts
       default: string
       fallback?: string

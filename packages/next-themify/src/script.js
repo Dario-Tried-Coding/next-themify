@@ -81,19 +81,33 @@ export function script(params) {
   }
   const default_SC = construct_DefaultST()
 
+  function construct_Valid_Values() {
+    /** @type {Record<string, string[]>} */ // @ts-ignore
+    const valid_values = {}
+
+    for (const [key, value] of Object.entries(config)) {
+      if (value.strategy === STRATS.mono) valid_values[key] = [value.key]
+      else if (value.strategy === STRATS.multi.light_dark) valid_values[key] = [value.keys.light, value.keys.dark, ...(value.keys.system ? [value.keys.system] : []), ...(value.keys.custom || [])]
+      else valid_values[key] = value.keys
+    }
+
+    return valid_values
+  }
+  const valid_values = construct_Valid_Values()
+
   // ---------------------------------------------------------------------
   // STORAGE THEME -------------------------------------------------------
   // ---------------------------------------------------------------------
 
   /**
    * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the storage config functions.
-   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} Theme_Validation The theme validation info.
+   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} SC_Validation The theme validation info.
    */
 
   /**
    * Retrieves the storage configuration from local storage and parses it if valid object.
    * @param {SC_Opts} [opts] The options object.
-   * @return {Theme_Validation} The parsed object if the stored value is a valid JSON object string, otherwise undefined.
+   * @return {SC_Validation} The parsed object if the stored value is a valid JSON object string, otherwise undefined.
    */
   function get_SC(opts) {
     const value = localStorage.getItem(config_SK)
@@ -106,16 +120,16 @@ export function script(params) {
    * Safely parses and validates the received string, returning a valid StorageConfig (invalid keys are replaced with corresponding fallback/default theme's key) and a boolean indicating if the string validated successfully.
    * @param {Generic_Obj | undefined} obj The object to validate.
    * @param {SC_Opts} [opts] The options object.
-   * @return {Theme_Validation} The theme validation info.
+   * @return {SC_Validation} The theme validation info.
    */
   function validate_SC(obj, opts) {
     const fallback_SC = opts?.fallback || default_SC
     if (!obj) return { SC: fallback_SC, passed: false }
 
-    /** @type {Theme_Validation['SC']} */ // @ts-expect-error
+    /** @type {SC_Validation['SC']} */ // @ts-expect-error
     const valid_SC = {}
     let passed = true
-    /** @type {NonNullable<Theme_Validation['validation_results']>} */ // @ts-expect-error
+    /** @type {NonNullable<SC_Validation['validation_results']>} */ // @ts-expect-error
     const validation_results = {}
 
     for (const config_key in config) {
@@ -172,4 +186,66 @@ export function script(params) {
     localStorage.setItem(config_SK, JSON.stringify(new_SC))
     // TODO: trigger custom storage event
   }
+
+  // ---------------------------------------------------------------------
+  // COLOR MODE ----------------------------------------------------------
+  // ---------------------------------------------------------------------
+
+  /**
+   * @typedef {{CM: string, resolved: boolean}} Revolve_CM_Result - The resolved color mode info.
+   * @typedef {{CM: string, passed: boolean}} CM_Validation - The color mode validation info.
+   */
+
+  /**
+   * Indicates if the browser supports ColorMode preference.
+   * @returns {boolean} Either true if it's supported, or false otherwise.
+   */
+  function supports_CMPref() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme)').matches
+  }
+
+  /**
+   * Resolves the color mode based on the provided color mode and system support&preferences.
+   * @param {string} CM - The color mode to resolve if necessary.
+   * @returns {Revolve_CM_Result} - The resolved color mode info.
+   */
+  function resolve_CM(CM) {
+    const has_CMPref = supports_CMPref()
+
+    if (config.mode?.strategy === 'light_dark' && CM === config.mode.keys.system) {
+      if (has_CMPref) {
+        const light = config.mode.keys.light || MODES.light
+        const dark = config.mode.keys.dark || MODES.dark
+
+        const resolved_CM = window.matchMedia('(prefers-color-scheme: dark)').matches ? dark : light
+        return { CM: resolved_CM, resolved: true }
+      }
+
+      const default_CM = config.mode.default || DEFAULT
+      return { CM: default_CM, resolved: true }
+    }
+
+    return { CM, resolved: false }
+  }
+
+  /**
+   *
+   * @param {string} CM - The color mode to validate.
+   * @param {Object} [opts] - The options object.
+   * @param {string} [opts.fallback] - The fallback color mode to use if the validation fails.
+   * @param {boolean} [opts.exclude_system] - Indicates if the system color mode should be excluded from the valid values.
+   * @returns {CM_Validation} The color mode validation info.
+   */
+  function validate_CM(CM, opts) {
+    const is_valid = valid_values['mode']?.includes(CM)
+
+    if (!is_valid) {
+      const fallback_CM = opts?.fallback || (config.mode?.strategy === 'mono' ? config.mode.key : config.mode?.default) || DEFAULT
+      return {CM: fallback_CM, passed: false}
+    }
+
+    return {CM, passed: true}
+  }
+
+  console.log(validate_CM('system'))
 }

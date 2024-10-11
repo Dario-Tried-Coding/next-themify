@@ -12,9 +12,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = {
-    mode: ['pumpkin', 'monospace']
-  } as const satisfies Keys
+  const keys = undefined satisfies Keys
 
   return (
     <html lang='en'>
@@ -22,10 +20,15 @@ export default function RootLayout({
         <ThemeProvider<typeof keys>
           config={{
             mode: {
-              strategy: 'custom',
-              keys: ['pumpkin', 'monospace'],
-              default: 'pumpkin',
-            },
+              strategy: 'light_dark',
+              default: 'system',
+              keys: {
+                light: 'light',
+                dark: 'dark',
+                system: 'system',
+              },
+              enableSystem: true
+            }
           }}
         >
           {children}
