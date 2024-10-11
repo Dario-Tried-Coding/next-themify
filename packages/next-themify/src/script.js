@@ -110,19 +110,16 @@ export function script(params) {
   /**
    * Retrieves the storage configuration from local storage, parses it, and validates it.
    *
-   * @param {Object} [opts] The options object.
-   * @param {Storage_Config} [opts.fallback] The fallback value to use if the theme is not valid. MUST BE VALID!!!
-   * @return {Theme_Validation} The theme validation info, including the parsed storage configuration and a boolean indicating if the validation was successful.
+   * @return {Record<string, any> | undefined} The theme validation info, including the parsed storage configuration and a boolean indicating if the validation was successful.
    */
-  function get_SC(opts) {
+  function get_SC() {
     const value = localStorage.getItem(config_SK)
     const parsed = parse_JsonToObj(value)
-    const validation = validate_SC(parsed, { fallback: safeGet(opts, 'fallback') })
-    return validation
+    return parsed
   }
 
   /**
-   * @typedef {{theme: Storage_Config, passed: boolean}} Theme_Validation The theme validation info.
+   * @typedef {{config: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} Theme_Validation The theme validation info.
    */
 
   /**
@@ -130,15 +127,18 @@ export function script(params) {
    * @param {Record<string, any> | undefined} obj The object to validate.
    * @param {Object} [opts] The options object.
    * @param {Storage_Config} [opts.fallback] The fallback value to use if the string is not valid. MUST BE VALID!!!
+   * @param {boolean} [opts.verbose] Whether to log the validation result.
    * @return {Theme_Validation} The theme validation info.
    */
   function validate_SC(obj, opts) {
     const fallback_SC = opts?.fallback || default_SC
-    if (!obj || typeof obj !== 'object') return { theme: fallback_SC, passed: false }
+    if (!obj) return { config: fallback_SC, passed: false }
 
-    /** @type {Storage_Config} */ // @ts-expect-error
+    /** @type {Theme_Validation['config']} */ // @ts-expect-error
     const valid_SC = {}
     let passed = true
+    /** @type {NonNullable<Theme_Validation['validation_results']>} */ // @ts-expect-error
+    const validation_results = {}
 
     for (const config_key in config) {
       const value_to_validate = obj[config_key]
@@ -161,10 +161,17 @@ export function script(params) {
 
       if (!valid_values.includes(value_to_validate)) {
         Object.assign(valid_SC, { [key]: fallback_SC[key] })
+        Object.assign(validation_results, { [key]: false })
         passed = false
-      } else Object.assign(valid_SC, { [key]: value_to_validate })
+      } else {
+        Object.assign(valid_SC, { [key]: value_to_validate })
+        Object.assign(validation_results, { [key]: true })
+      }
     }
 
-    return { theme: valid_SC, passed }
+    if (opts?.verbose) return { config: valid_SC, passed, validation_results }
+    return { config: valid_SC, passed }
   }
+
+  console.log(validate_SC(get_SC(), {verbose: true}))
 }
