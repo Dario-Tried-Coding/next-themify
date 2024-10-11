@@ -14,7 +14,7 @@ type Mode_Opts = AtLeastOne<Light_Dark_Mode_Opts>
 export type Keys =
   | AtLeastOne<{
       theme?: Mono_Opt | Custom_Opts
-      mode?: Mono_Opt | Mode_Opts
+      mode?: Mono_Opt | Custom_Opts | Mode_Opts
       radius?: Mono_Opt | Custom_Opts
     }>
   | undefined
@@ -80,13 +80,15 @@ type Construct_Prop<K extends NonNullable<Keys>['theme']> = K extends undefined
 
 type Construct_Mode<K extends NonNullable<Keys>['mode']> = K extends undefined
   ? Mono_Strat<DEFAULT>
-  : K extends string
+  : K extends Mono_Opt
     ? Mono_Strat<K>
-    : K extends Mode_Opts
-      ? K['custom'] extends string[]
-        ? Custom_Mode_Strat<K['custom']> | Light_Dark_Mode_Strat<K>
-        : Light_Dark_Mode_Strat<K>
-      : never
+    : K extends Custom_Opts
+      ? Custom_Mode_Strat<K>
+      : K extends Mode_Opts
+        ? K['custom'] extends string[]
+          ? Custom_Mode_Strat<K['custom']> | Light_Dark_Mode_Strat<K>
+          : Light_Dark_Mode_Strat<K>
+        : never
 
 export type Config<K extends Keys> = AtLeastOne<{
   [Prop in keyof NonNullable<Keys>]?: Prop extends 'mode'
