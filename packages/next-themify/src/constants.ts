@@ -1,6 +1,8 @@
 export const DEFAULT = 'default' as const
 export type DEFAULT = typeof DEFAULT
 
+export type STATIC = 'static-type'
+
 export const STRATS = {
   mono: 'mono',
   multi: {
@@ -23,4 +25,4 @@ export type LIGHT = (typeof MODES)['light']
 export type DARK = (typeof MODES)['dark']
 export type SYSTEM = (typeof MODES)['system']
 
-export const CONFIG_SK = 'next-themify-config' as const
+export const CONFIG_SK = 'next-themify' as const

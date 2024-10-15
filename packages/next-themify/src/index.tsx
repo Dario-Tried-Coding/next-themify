@@ -21,11 +21,7 @@ export function ThemeProvider<K extends Keys = never>({ config_sk, config, child
   const scriptArgs = JSON.stringify({
     config_SK: config_sk || CONFIG_SK,
     config: config,
-    constants: {
-      STRATS,
-      MODES,
-      DEFAULT,
-    },
+    constants: { STRATS },
   } satisfies Script_Params)
 
   return (

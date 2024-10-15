@@ -1,5 +1,5 @@
 import { ThemeProvider } from '@dariotriedcoding/next-themify'
-import { Keys } from '@dariotriedcoding/next-themify/types'
+import {  } from '@dariotriedcoding/next-themify/types'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -19,15 +19,20 @@ export default function RootLayout({
       <body>
         <ThemeProvider<typeof keys>
           config={{
+            theme: {
+              strategy: 'mono',
+              key: 'default'
+            },
             mode: {
               strategy: 'light_dark',
+              enableSystem: true,
               default: 'system',
+              fallback: 'dark',
               keys: {
                 light: 'light',
                 dark: 'dark',
                 system: 'system',
-              },
-              enableSystem: true
+              }
             }
           }}
         >
