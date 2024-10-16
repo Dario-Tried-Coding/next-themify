@@ -12,7 +12,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = undefined satisfies Keys
+  const keys = {
+    mode: {
+      light: 'light',
+      dark: 'dark',
+    }
+  } as const satisfies Keys
 
   return (
     <html lang='en'>
@@ -24,8 +29,15 @@ export default function RootLayout({
               key: 'default'
             },
             mode: {
-              strategy: 'mono',
-              key: 'default'
+              strategy: 'light_dark',
+              keys: {
+                light: 'light',
+                dark: 'dark',
+                system: 'system'
+              },
+              enableSystem: true,
+              default: 'system',
+              fallback: 'light'
             }
           }}
         >
