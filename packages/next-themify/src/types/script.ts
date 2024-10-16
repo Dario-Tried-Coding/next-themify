@@ -1,7 +1,7 @@
-import { Config as Construct_Config } from './index'
-import { STRATS } from '../constants'
+import { Config as Construct_Config, Props } from './index'
+import { STATIC, STRATS } from '../constants'
 
-export type Config = Construct_Config<null>
+export type Config = Construct_Config<STATIC>
 
 export type Script_Params = {
   config_SK: string
@@ -11,4 +11,4 @@ export type Script_Params = {
   }
 }
 
-export type Storage_Config = Partial<Record<keyof Config, string>>
+export type Storage_Config = Partial<Record<Props, string>>

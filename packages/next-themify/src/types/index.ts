@@ -1,4 +1,4 @@
-import { CUSTOM, DEFAULT, LIGHT_DARK, MONO, MULTI, SYSTEM } from '../constants'
+import { CUSTOM, DEFAULT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
 import { AtLeastOne } from './utils'
 
 // #region OPTS
@@ -22,6 +22,10 @@ type Keys = {
   radius?: Basic_Prop_Keys
 }
 export type Keys_Config = AtLeastOne<Keys> | undefined
+// #endregion
+
+// #region PROPS
+export type Props = keyof NonNullable<Keys_Config>
 // #endregion
 
 // #region STRATS
@@ -73,9 +77,9 @@ type Light_Dark_Mode_Strat<Prov_Opts extends Mode_Opts | null> = Prov_Opts exten
 // #endregion
 
 // #region CONFIG
-type Config_Prop<Prov_Keys extends Basic_Prop_Keys | undefined | null = undefined> = Prov_Keys extends null
+type Config_Prop<Prov_Keys extends Basic_Prop_Keys | DEFAULT | STATIC = DEFAULT> = Prov_Keys extends STATIC
   ? Mono_Strat<string> | Multi_Strat<string[]>
-  : Prov_Keys extends undefined
+  : Prov_Keys extends DEFAULT
     ? Mono_Strat<DEFAULT>
     : Prov_Keys extends Mono_Opt
       ? Mono_Strat<Prov_Keys>
@@ -83,9 +87,9 @@ type Config_Prop<Prov_Keys extends Basic_Prop_Keys | undefined | null = undefine
         ? Multi_Strat<Prov_Keys>
         : never
 
-type Mode_Prop<Prov_Keys extends Mode_Prop_Keys | undefined | null = undefined> = Prov_Keys extends null
+type Mode_Prop<Prov_Keys extends Mode_Prop_Keys | DEFAULT | STATIC = DEFAULT> = Prov_Keys extends STATIC
   ? Mono_Strat<string> | Light_Dark_Mode_Strat<null> | Custom_Mode_Strat<string[]>
-  : Prov_Keys extends undefined
+  : Prov_Keys extends DEFAULT
     ? Mono_Strat<DEFAULT>
     : Prov_Keys extends Mono_Opt
       ? Mono_Strat<Prov_Keys>
@@ -95,24 +99,30 @@ type Mode_Prop<Prov_Keys extends Mode_Prop_Keys | undefined | null = undefined> 
           ? Light_Dark_Mode_Strat<Prov_Keys>
           : never
 
-export type Config<Prov_Keys extends Keys_Config | null = undefined> = Prov_Keys extends null
+export type Config<Prov_Keys extends Keys_Config | STATIC = undefined> = Prov_Keys extends STATIC
   ? {
-      [Prop in keyof Keys]?: Prop extends 'mode' ? Mode_Prop<null> : Config_Prop<null>
+      [Prop in keyof Keys]?: Prop extends 'mode' ? Mode_Prop<STATIC> : Config_Prop<STATIC>
     }
   : Prov_Keys extends undefined
-    ? {
-        [Prop in keyof Keys]-?: Prop extends 'mode' ? Mode_Prop : Config_Prop
-      }
-    : Prov_Keys extends Keys
+    ? AtLeastOne<{
+        [Prop in keyof Keys]?: Prop extends 'mode' ? Mode_Prop<DEFAULT> : Config_Prop<DEFAULT>
+      }>
+    : Prov_Keys extends NonNullable<Keys_Config>
       ? {
-          [Prop in keyof Keys]-?: Prop extends 'mode' ? Mode_Prop<Prov_Keys[Prop]> : Config_Prop<Prov_Keys[Prop]>
+          [Prop in keyof Prov_Keys]-?: Prop extends 'mode'
+            ? Mode_Prop<NonNullable<Prov_Keys[Prop]>>
+            : Prop extends Exclude<Props, 'mode'>
+              ? Config_Prop<NonNullable<Prov_Keys[Prop]>>
+              : never
+        } & {
+          [Prop in keyof Omit<Keys, keyof Prov_Keys>]?: Prop extends 'mode' ? Mode_Prop<DEFAULT> : Config_Prop<DEFAULT>
         }
       : never
 // #endregion
 
-const test: Config<{theme: 'custom-theme'}> = {
+const test: Config<undefined> = {
   theme: {
     strategy: 'mono',
-    key: 'custom-theme'
-  }
+    key: 'default',
+  },
 }

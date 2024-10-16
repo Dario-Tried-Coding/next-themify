@@ -43,5 +43,4 @@ export function script(params) {
   }
   // #endregion
 
-  const test = 'test'
 }

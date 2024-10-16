@@ -1,10 +1,10 @@
 'use client'
 
 import { createContext, PropsWithChildren } from 'react'
+import { CONFIG_SK, STRATS } from './constants'
 import { script } from './script'
 import { Config, Keys } from './types'
 import { Script_Params } from './types/script'
-import { CONFIG_SK, DEFAULT, MODES, STRATS } from './constants'
 
 // CONTEXT
 interface ContextProps {
