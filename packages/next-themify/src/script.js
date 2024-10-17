@@ -163,7 +163,7 @@ export function script(params) {
 
   /**
    * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the SC functions.
-   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Partial<Record<Prop, boolean>>}} SC_Validation The SC validation info.
+   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Partial<Record<Prop, [string, boolean]>>}} SC_Validation The SC validation info.
    */
 
   /**
@@ -217,5 +217,37 @@ export function script(params) {
     const parsed_obj = parse_JsonToObj(storage_string)
     const validation = validate_SC(parsed_obj, { fallback: opts?.fallback, verbose: opts?.verbose })
     return validation
+  }
+
+  /**
+   * @param {Storage_Config} SC_to_set
+   * @param {object} [opts]
+   * @param {boolean} [opts.force]
+   */
+  function set_SC(SC_to_set, opts) {
+    const { SC: current_SC, passed: is_current_SC_valid } = get_SC()
+    const { SC: valid_SC_to_set, validation_results } = validate_SC(SC_to_set, { verbose: true })
+
+    const tried_to_set_invalid_keys =
+      validation_results &&
+      Object.entries(validation_results)
+        .filter(([key, [value, passed]]) => !passed)
+        .map(([key, [value]]) => [key, value])
+
+    if (tried_to_set_invalid_keys) warn('set_SC: Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
+
+    const new_SC = { ...current_SC }
+
+    for (const key in valid_SC_to_set) {
+      const typed_key = /** @type {keyof typeof valid_SC_to_set} */ (key)
+      new_SC[typed_key] = valid_SC_to_set[typed_key]
+    }
+
+    const must_update = opts?.force || !is_current_SC_valid || (is_current_SC_valid && !isSameObj(new_SC, current_SC))
+
+    if (!must_update) return
+
+    localStorage.setItem(config_SK, JSON.stringify(new_SC))
+    // TODO: trigger custom storage event
   }
 }
