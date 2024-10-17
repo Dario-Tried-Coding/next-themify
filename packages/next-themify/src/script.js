@@ -22,22 +22,64 @@ export function script(params) {
   let init_library = true
 
   const valid_values = construct_valid_values()
+  const default_SC = construct_default_SC()
 
-  // #region HELPERS
+  // #region HELPERS --------------------------------------------------------------------------
   /** @param {string} str */
   function capitalize(str) {
     if (!str) return ''
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
   }
+
+  /**
+   * Parses a JSON string and returns the corresponding object if valid.
+   * @param {string | undefined | null} string - The JSON string to parse.
+   * @returns {Record<string, any> | undefined} The parsed object if the input is a valid JSON object string, otherwise undefined.
+   */
+  function parse_JsonToObj(string) {
+    if (typeof string !== 'string' || string.trim() === '') return undefined
+
+    try {
+      const result = JSON.parse(string)
+      return typeof result === 'object' && result !== null && !Array.isArray(result) ? result : undefined
+    } catch (error) {
+      return undefined
+    }
+  }
+
+  /**
+   * Compares two objects to determine if they are the same.
+   * @param {Record<string, any>} obj1 - The first object to compare.
+   * @param {Record<string, any>} obj2 - The second object to compare.
+   * @returns {boolean} `true` if the objects are the same, otherwise `false`.
+   */
+  function isSameObj(obj1, obj2) {
+    if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) return false
+
+    const keys1 = Object.keys(obj1)
+    const keys2 = Object.keys(obj2)
+
+    if (keys1.length !== keys2.length) return false
+
+    for (const key of keys1) {
+      const val1 = obj1[key]
+      const val2 = obj2[key]
+
+      const areObjects = typeof val1 === 'object' && val1 !== null && typeof val2 === 'object' && val2 !== null
+
+      if ((areObjects && !isSameObj(val1, val2)) || (!areObjects && val1 !== val2)) return false
+    }
+
+    return true
+  }
   // #endregion
 
-  // #region UTILS
+  // #region UTILS ----------------------------------------------------------------------------
   function construct_valid_values() {
     /** @type {Partial<Record<Prop, Set<string>>>} */
     const valid_values = {}
 
     for (const [key, value] of Object.entries(config)) {
-      if (!(key in config)) continue
       const typed_key = /** @type {Prop} */ (key)
 
       if (value.strategy === STRATS.mono) valid_values[typed_key] = new Set([value.key])
@@ -53,9 +95,23 @@ export function script(params) {
 
     return valid_values
   }
+
+  function construct_default_SC() {
+    /** @type {Storage_Config} */
+    const default_SC = {}
+
+    for (const [key, value] of Object.entries(config)) {
+      const typed_key = /** @type {Prop} */ (key)
+
+      if (value.strategy === STRATS.mono) default_SC[typed_key] = value.key
+      else default_SC[typed_key] = value.default
+    }
+
+    return default_SC
+  }
   // #endregion
 
-  // #region CONFIG VALIDATION
+  // #region CONFIG VALIDATION ----------------------------------------------------------------
   /**
    * @param {string} msg
    * @param {any[]} args
@@ -94,7 +150,6 @@ export function script(params) {
 
   function validate_config() {
     for (const [key, strat_obj] of Object.entries(config)) {
-      if (!(key in config)) continue
       const typed_key = /** @type {Prop} */ (key)
 
       if (strat_obj.strategy === STRATS.mono) continue
@@ -104,5 +159,63 @@ export function script(params) {
   }
   // #endregion
 
-  validate_config()
+  // #region STORAGE CONFIG (SC) ----------------------------------------------------------------
+
+  /**
+   * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the SC functions.
+   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Partial<Record<Prop, boolean>>}} SC_Validation The SC validation info.
+   */
+
+  /**
+   * Safely parses and validates the received string, returning a valid SC (invalid keys are replaced with corresponding fallback/default theme's key) and a boolean indicating if the string validated successfully.
+   * @param {Record<string, any> | undefined | null} obj_to_validate The object to validate.
+   * @param {SC_Opts} [opts] The options object.
+   * @return {SC_Validation} The theme validation info.
+   */
+  function validate_SC(obj_to_validate, opts) {
+    const fallback_SC = opts?.fallback || default_SC
+    if (!obj_to_validate) return { SC: fallback_SC, passed: false }
+
+    /** @type {Storage_Config} */
+    const valid_SC = {}
+    let passed = true
+
+    /** @type {Record<string, [string, boolean]>} */
+    const validation_results = {}
+
+    for (const [key, value_to_validate] of Object.entries(obj_to_validate)) {
+      if (!(key in valid_values)) {
+        validation_results[key] = [value_to_validate, false]
+        passed = false
+        continue
+      }
+
+      const typed_key = /** @type {keyof typeof config} */ (key)
+
+      if (!valid_values[typed_key]?.has(value_to_validate)) {
+        valid_SC[typed_key] = fallback_SC[typed_key]
+        validation_results[typed_key] = [value_to_validate, false]
+        passed = false
+        continue
+      }
+
+      valid_SC[typed_key] = value_to_validate
+      validation_results[typed_key] = [value_to_validate, true]
+    }
+
+    if (opts?.verbose) return { SC: valid_SC, passed, validation_results }
+    return { SC: valid_SC, passed }
+  }
+
+  /**
+   * Retrieves and validates the SC object from local storage.
+   * @param {SC_Opts} [opts] - Optional settings for the SC retrieval.
+   * @return {SC_Validation} - The SC validation info.
+   */
+  function get_SC(opts) {
+    const storage_string = localStorage.getItem(config_SK)
+    const parsed_obj = parse_JsonToObj(storage_string)
+    const validation = validate_SC(parsed_obj, { fallback: opts?.fallback, verbose: opts?.verbose })
+    return validation
+  }
 }
