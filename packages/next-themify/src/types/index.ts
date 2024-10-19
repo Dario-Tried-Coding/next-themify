@@ -1,12 +1,12 @@
-import { CUSTOM, DEFAULT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
+import { CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
 import { AtLeastOne } from './utils'
 
 // #region OPTS
 type Mono_Opt = string
 type Custom_Opts = string[]
 type Mode_Opts = {
-  light: string
-  dark: string
+  light?: string
+  dark?: string
   system?: string
   custom?: string[]
 }
@@ -33,47 +33,76 @@ export type Mono_Strat<String extends string> = { strategy: MONO; key: String }
 export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] }
 export type Custom_Mode_Strat<Keys extends string[]> = { strategy: CUSTOM; keys: Keys; default: Keys[number] }
 
-export type Light_Dark_Mode_Strat<Prov_Opts extends Mode_Opts | STATIC> = Prov_Opts extends Mode_Opts
+export type Light_Dark_Mode_Strat<Prov_Opts extends Mode_Opts | DEFAULT | STATIC> = Prov_Opts extends Mode_Opts
   ? {
       strategy: LIGHT_DARK
-      fallback: Prov_Opts['light'] | Prov_Opts['dark'] | (Prov_Opts['custom'] extends string[] ? Prov_Opts['custom'][number] : never)
     } & (
       | {
           enableSystem: true
           default:
-            | Prov_Opts['light']
-            | Prov_Opts['dark']
+            | (Prov_Opts['light'] extends string ? Prov_Opts['light'] : LIGHT)
+            | (Prov_Opts['dark'] extends string ? Prov_Opts['dark'] : DARK)
             | (Prov_Opts['system'] extends string ? Prov_Opts['system'] : SYSTEM)
             | (Prov_Opts['custom'] extends string[] ? Prov_Opts['custom'][number] : never)
+          fallback:
+            | (Prov_Opts['light'] extends string ? Prov_Opts['light'] : LIGHT)
+            | (Prov_Opts['dark'] extends string ? Prov_Opts['dark'] : DARK)
+            | (Prov_Opts['custom'] extends string[] ? Prov_Opts['custom'][number] : never)
           keys: {
-            light: Prov_Opts['light']
-            dark: Prov_Opts['dark']
+            light: Prov_Opts['light'] extends string ? Prov_Opts['light'] : LIGHT
+            dark: Prov_Opts['dark'] extends string ? Prov_Opts['dark'] : DARK
             system: Prov_Opts['system'] extends string ? Prov_Opts['system'] : SYSTEM
           } & (Prov_Opts['custom'] extends string[] ? { custom: Prov_Opts['custom'] } : {})
         }
       | {
           enableSystem: false
-          default: Prov_Opts['light'] | Prov_Opts['dark'] | (Prov_Opts['custom'] extends string[] ? Prov_Opts['custom'][number] : never)
+          default:
+            | (Prov_Opts['light'] extends string ? Prov_Opts['light'] : LIGHT)
+            | (Prov_Opts['dark'] extends string ? Prov_Opts['dark'] : DARK)
+            | (Prov_Opts['custom'] extends string[] ? Prov_Opts['custom'][number] : never)
           keys: {
-            light: Prov_Opts['light']
-            dark: Prov_Opts['dark']
+            light: Prov_Opts['light'] extends string ? Prov_Opts['light'] : LIGHT
+            dark: Prov_Opts['dark'] extends string ? Prov_Opts['dark'] : DARK
           } & (Prov_Opts['custom'] extends string[] ? { custom: Prov_Opts['custom'] } : {})
         }
     )
-  : {
-      strategy: LIGHT_DARK
-      default: string
-      fallback: string
-    } & (
-      | {
-          enableSystem: true
-          keys: Omit<Mode_Opts, 'system'> & Required<Pick<Mode_Opts, 'system'>>
-        }
-      | {
-          enableSystem: false
-          keys: Omit<Mode_Opts, 'system'>
-        }
-    )
+  : Prov_Opts extends DEFAULT
+    ? {
+        strategy: LIGHT_DARK
+      } & (
+        | {
+            enableSystem: true
+            default: LIGHT | DARK | SYSTEM
+            fallback: LIGHT | DARK
+            keys: {
+              light: LIGHT
+              dark: DARK
+              system: SYSTEM
+            }
+          }
+        | {
+            enableSystem: false
+            default: LIGHT | DARK
+            keys: {
+              light: LIGHT
+              dark: DARK
+            }
+          }
+      )
+    : {
+        strategy: LIGHT_DARK
+        default: string
+      } & (
+        | {
+            enableSystem: true
+            keys: Required<Pick<Mode_Opts, 'light' | 'dark' | 'system'>> & Pick<Mode_Opts, 'custom'>
+            fallback: string
+          }
+        | {
+            enableSystem: false
+            keys: Required<Pick<Mode_Opts, 'light' | 'dark'>> & Pick<Mode_Opts, 'custom'>
+          }
+      )
 // #endregion
 
 // #region CONFIG
@@ -90,7 +119,7 @@ type Config_Prop<Prov_Keys extends Basic_Prop_Keys | DEFAULT | STATIC = DEFAULT>
 type Mode_Prop<Prov_Keys extends Mode_Prop_Keys | DEFAULT | STATIC = DEFAULT> = Prov_Keys extends STATIC
   ? Mono_Strat<string> | Light_Dark_Mode_Strat<STATIC> | Custom_Mode_Strat<string[]>
   : Prov_Keys extends DEFAULT
-    ? Mono_Strat<DEFAULT>
+    ? Mono_Strat<DEFAULT> | Light_Dark_Mode_Strat<DEFAULT>
     : Prov_Keys extends Mono_Opt
       ? Mono_Strat<Prov_Keys>
       : Prov_Keys extends Custom_Opts
@@ -119,11 +148,3 @@ export type Config<Prov_Keys extends Keys_Config | STATIC = undefined> = Prov_Ke
         }
       : never
 // #endregion
-
-const test: Config<undefined> = {
-  theme: {
-    strategy: 'mono',
-    key: 'default',
-  },
-  
-}
