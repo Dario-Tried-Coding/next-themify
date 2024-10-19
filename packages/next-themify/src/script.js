@@ -220,9 +220,10 @@ export function script(params) {
   }
 
   /**
-   * @param {Storage_Config} SC_to_set
-   * @param {object} [opts]
-   * @param {boolean} [opts.force]
+   * Stores/Updates the SC in the local storage after validating it.
+   * @param {Storage_Config} SC_to_set - The SC to store.
+   * @param {object} [opts] - Optional settings for the SC setting process.
+   * @param {boolean} [opts.force] - Forces the SC to be stored even if it's the same as the current one.
    */
   function set_SC(SC_to_set, opts) {
     const { SC: current_SC, passed: is_current_SC_valid } = get_SC()
@@ -234,7 +235,8 @@ export function script(params) {
         .filter(([key, [value, passed]]) => !passed)
         .map(([key, [value]]) => [key, value])
 
-    if (tried_to_set_invalid_keys) warn('set_SC: Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
+    if (tried_to_set_invalid_keys)
+      warn('set_SC: Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
 
     const new_SC = { ...current_SC }
 
@@ -250,4 +252,48 @@ export function script(params) {
     localStorage.setItem(config_SK, JSON.stringify(new_SC))
     // TODO: trigger custom storage event
   }
+
+  // #endregion
+
+  // #region COLOR MODE (CM) ----------------------------------------------------------------
+
+  /**
+   * @typedef {{CM: string, passed: false, received: string, valid_values: string[]}|{CM: string, passed: true}} CM_Validation - The color mode validation info.
+   */
+
+  /** Retrieves the user's preferred color scheme. */
+  function get_CMPref() {
+    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+
+  /**
+   * Validated the provided CM
+   * @param {string} CM_to_validate - The color mode to validate.
+   * @param {Object} [opts] - The options object.
+   * @param {string} [opts.fallback] - The fallback color mode to use if the validation fails.
+   * @returns {CM_Validation | void} - The color mode validation info.
+   */
+  function validate_CM(CM_to_validate, opts) {
+    const valid_CMs = valid_values['mode']
+
+    if (!valid_CMs || !default_SC['mode'])
+      return warn(`validate_CM: Tried to validate a color mode but "mode" key is missing from the config object.`)
+
+    const passed = valid_CMs.has(CM_to_validate)
+
+    if (!passed) {
+      const fallback_CM =
+        opts?.fallback ||
+        (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_SC['mode'] === config.mode.keys.system && !get_CMPref()
+          ? config.mode.fallback
+          : default_SC['mode'])
+      return { CM: fallback_CM, passed: false, received: CM_to_validate, valid_values: Array.from(valid_CMs) }
+    }
+
+    return { CM: CM_to_validate, passed: true }
+  }
+  // #endregion
+
+  console.log(validate_CM('prova'))
 }

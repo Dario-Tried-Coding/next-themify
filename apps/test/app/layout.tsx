@@ -19,10 +19,6 @@ export default function RootLayout({
       <body>
         <ThemeProvider<typeof keys>
           config={{
-            theme: {
-              strategy: 'mono',
-              key: 'default'
-            },
             mode: {
               strategy: 'mono',
               key: 'default'
