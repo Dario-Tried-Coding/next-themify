@@ -26,13 +26,8 @@ export default function RootLayout({
               key: 'custom-theme',
             },
             mode: {
-              strategy: 'light_dark',
-              enableSystem: false,
-              default: 'dark',
-              keys: {
-                dark: 'dark',
-                light: 'light'
-              }
+              strategy: 'mono',
+              key: 'default'
             }
           }}
         >

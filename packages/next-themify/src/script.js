@@ -133,8 +133,11 @@ export function script(params) {
   /** @param {Light_Dark_Mode_Strat} obj */
   const validate_light_dark_mode_strat = (obj) => {
     if (obj.keys.light === obj.keys.dark)
-      return warn('Func: validate_light_dark_mode_strat - "light" and "dark" keys must be different', { keys: { light: obj.keys.light, dark: obj.keys.dark } })
-    if (obj.enableSystem && !obj.keys.system) return warn('Func: validate_light_dark_mode_strat - "system" key must be provided if "system" is enabled', { keys: obj.keys })
+      return warn('Func: validate_light_dark_mode_strat - "light" and "dark" keys must be different', {
+        keys: { light: obj.keys.light, dark: obj.keys.dark },
+      })
+    if (obj.enableSystem && !obj.keys.system)
+      return warn('Func: validate_light_dark_mode_strat - "system" key must be provided if "system" is enabled', { keys: obj.keys })
     if (obj.enableSystem && (obj.keys.system === obj.keys.light || obj.keys.system === obj.keys.dark))
       return warn('Func: validate_light_dark_mode_strat - "system" key must be different from "light" and "dark" keys', { keys: obj.keys })
     if (obj.keys.custom && obj.keys.custom.length === 0)
@@ -258,7 +261,7 @@ export function script(params) {
   // #region COLOR MODE (CM) ----------------------------------------------------------------
 
   /**
-   * @typedef {{CM: string, passed: false, received: string, valid_values: string[]}|{CM: string, passed: true}} CM_Validation - The color mode validation info.
+   * @typedef {{CM: string, passed: boolean, received: string, valid_CMs: string[]}} CM_Validation - The color mode validation info.
    */
 
   /** Retrieves the user's preferred color scheme. */
@@ -272,34 +275,44 @@ export function script(params) {
    * @param {string} CM - The color mode to validate.
    * @param {Object} [opts] - The options object.
    * @param {string} [opts.fallback] - The fallback color mode to use if the validation fails.
-   * @returns {CM_Validation | void} - The color mode validation info.
+   * @returns {CM_Validation} - The color mode validation info.
    */
   function validate_CM(CM, opts) {
     const valid_CMs = valid_values['mode']
+    const default_CM = default_SC.mode
 
-    if (!valid_CMs || !default_SC['mode'])
-      return warn(`Func: validate_CM - Tried to validate a color mode but "mode" key is missing from the config object.`)
+    if (!valid_CMs || !default_CM) {
+      warn(`Func: validate_CM - Tried to validate a color mode but "mode" key is missing from the config object.`)
+      return { CM, passed: false, received: CM, valid_CMs: [] }
+    }
 
     const passed = valid_CMs.has(CM)
 
     if (!passed) {
       const fallback_CM =
         opts?.fallback ||
-        (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_SC['mode'] === config.mode.keys.system && !get_CMPref()
+        (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_CM === config.mode.keys.system && !get_CMPref()
           ? config.mode.fallback
-          : default_SC['mode'])
-      return { CM: fallback_CM, passed: false, received: CM, valid_values: Array.from(valid_CMs) }
+          : default_CM)
+      return { CM: fallback_CM, passed: false, received: CM, valid_CMs: Array.from(valid_CMs) }
     }
 
-    return { CM, passed: true }
+    return { CM, passed: true, received: CM, valid_CMs: Array.from(valid_CMs) }
   }
-  
-  /**
-   * @param {string} CM 
-   */
-  function resolve_CM(CM) {
-    if (!config.mode) return warn('Func: resolve_CM - Trying to resolve color mode but "mode" key is missing from the config object.')
-    if (config.mode.strategy !== 'light_dark' || !config.mode.enableSystem) return warn('Func: resolve_CM - Trying to resolve color mode but "system" but ')
+
+  function resolve_CM() {
+    if (!config.mode) return warn('Func: resolve_CM - Trying to resolve "system" color mode but "mode" key is missing from the config object.')
+    if (config.mode.strategy !== 'light_dark')
+      return warn('Func: resolve_CM - Trying to resolve "system" color mode but the configured strategy is not "light_dark".')
+    if (config.mode.strategy === 'light_dark' && !config.mode.enableSystem)
+      return warn('Func: resolve_CM - Trying to resolve "system" color mode but system-based color mode is not enabled in the config object.')
+
+    const CM_pref = get_CMPref()
+    if (!CM_pref) return config.mode.fallback
+
+    return CM_pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light
   }
   // #endregion
+
+  
 }
