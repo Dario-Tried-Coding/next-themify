@@ -27,15 +27,13 @@ export default function RootLayout({
             },
             mode: {
               strategy: 'light_dark',
-              enableSystem: true,
-              default: 'system',
-              fallback: 'dark',
+              enableSystem: false,
+              default: 'dark',
               keys: {
-                light: 'light',
                 dark: 'dark',
-                system: 'system',
-              },
-            },
+                light: 'light'
+              }
+            }
           }}
         >
           {children}

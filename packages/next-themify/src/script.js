@@ -133,16 +133,16 @@ export function script(params) {
   /** @param {Light_Dark_Mode_Strat} obj */
   const validate_light_dark_mode_strat = (obj) => {
     if (obj.keys.light === obj.keys.dark)
-      return warn('Mode validation: "light" and "dark" keys must be different', { keys: { light: obj.keys.light, dark: obj.keys.dark } })
-    if (obj.enableSystem && !obj.keys.system) return warn('Mode validation: "system" key must be provided if "system" is enabled', { keys: obj.keys })
+      return warn('Func: validate_light_dark_mode_strat - "light" and "dark" keys must be different', { keys: { light: obj.keys.light, dark: obj.keys.dark } })
+    if (obj.enableSystem && !obj.keys.system) return warn('Func: validate_light_dark_mode_strat - "system" key must be provided if "system" is enabled', { keys: obj.keys })
     if (obj.enableSystem && (obj.keys.system === obj.keys.light || obj.keys.system === obj.keys.dark))
-      return warn('Mode validation: "system" key must be different from "light" and "dark" keys', { keys: obj.keys })
+      return warn('Func: validate_light_dark_mode_strat - "system" key must be different from "light" and "dark" keys', { keys: obj.keys })
     if (obj.keys.custom && obj.keys.custom.length === 0)
-      return warn('Mode validation: at least one "custom" key must be provided', { keys: obj.keys.custom })
+      return warn('Func: validate_light_dark_mode_strat - at least one "custom" key must be provided', { keys: obj.keys.custom })
     if (!valid_values['mode']?.has(obj.default))
-      return warn('Mode validation: "default" key must be one of the provided keys', { keys: obj.keys, default: obj.default })
+      return warn('Func: validate_light_dark_mode_strat - "default" key must be one of the provided keys', { keys: obj.keys, default: obj.default })
     if (obj.enableSystem && obj.fallback === obj.keys.system)
-      return warn('Mode validation: "fallback" key must be different from "system" key', {
+      return warn('Func: validate_light_dark_mode_strat - "fallback" key must be different from "system" key', {
         keys: { system: obj.keys.system },
         fallback: obj.fallback,
       })
@@ -236,7 +236,7 @@ export function script(params) {
         .map(([key, [value]]) => [key, value])
 
     if (tried_to_set_invalid_keys)
-      warn('set_SC: Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
+      warn('Func: set_SC - Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
 
     const new_SC = { ...current_SC }
 
@@ -268,19 +268,19 @@ export function script(params) {
   }
 
   /**
-   * Validated the provided CM
-   * @param {string} CM_to_validate - The color mode to validate.
+   * Validates the provided CM
+   * @param {string} CM - The color mode to validate.
    * @param {Object} [opts] - The options object.
    * @param {string} [opts.fallback] - The fallback color mode to use if the validation fails.
    * @returns {CM_Validation | void} - The color mode validation info.
    */
-  function validate_CM(CM_to_validate, opts) {
+  function validate_CM(CM, opts) {
     const valid_CMs = valid_values['mode']
 
     if (!valid_CMs || !default_SC['mode'])
-      return warn(`validate_CM: Tried to validate a color mode but "mode" key is missing from the config object.`)
+      return warn(`Func: validate_CM - Tried to validate a color mode but "mode" key is missing from the config object.`)
 
-    const passed = valid_CMs.has(CM_to_validate)
+    const passed = valid_CMs.has(CM)
 
     if (!passed) {
       const fallback_CM =
@@ -288,12 +288,18 @@ export function script(params) {
         (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_SC['mode'] === config.mode.keys.system && !get_CMPref()
           ? config.mode.fallback
           : default_SC['mode'])
-      return { CM: fallback_CM, passed: false, received: CM_to_validate, valid_values: Array.from(valid_CMs) }
+      return { CM: fallback_CM, passed: false, received: CM, valid_values: Array.from(valid_CMs) }
     }
 
-    return { CM: CM_to_validate, passed: true }
+    return { CM, passed: true }
+  }
+  
+  /**
+   * @param {string} CM 
+   */
+  function resolve_CM(CM) {
+    if (!config.mode) return warn('Func: resolve_CM - Trying to resolve color mode but "mode" key is missing from the config object.')
+    if (config.mode.strategy !== 'light_dark' || !config.mode.enableSystem) return warn('Func: resolve_CM - Trying to resolve color mode but "system" but ')
   }
   // #endregion
-
-  console.log(validate_CM('prova'))
 }
