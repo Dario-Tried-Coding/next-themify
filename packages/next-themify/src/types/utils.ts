@@ -8,10 +8,4 @@ export type WithDefaults<T extends object, Defaults extends Record<keyof T, any>
   [K in keyof T]: K extends keyof Defaults ? Defaults[K] : T[K]
 }
 
-export type IsLiteralArray<T> = T extends (infer U)[]
-  ? U extends string
-    ? T extends string[]
-      ? false // Caso generico string[]
-      : true // Caso array di stringhe letterali specifiche
-    : false
-  : false
+export type IsLiteralArray<T> = T extends readonly string[] ? (string[] extends T ? false : true) : false

@@ -1,4 +1,4 @@
-import { Config as Construct_Config, Prop } from './index'
+import { Config as Construct_Config, Prop } from './test'
 import { MODES, STATIC, STRATS } from '../constants'
 
 export type Config = Construct_Config<STATIC>
