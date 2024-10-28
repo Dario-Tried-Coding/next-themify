@@ -1,30 +1,42 @@
 // @ts-check
 
 /**
- *  @typedef {import('./types/script').Storage_Config} Storage_Config
- *  @typedef {import('./types/script').Config} Config
+ * @typedef {import('./constants').STATIC} STATIC
+ * @typedef {import('./constants').LIGHT} LIGHT
+ * @typedef {import('./constants').DARK} DARK
+ * @typedef {import('./types').Config<STATIC>} Config
+ * @typedef {import('./types/script').Storage_Config} Storage_Config
+ * @typedef {import('./types/index').Prop} Prop
+ * @typedef {import('./types/index').Multi_Strat<string[]>} Multi_Strat
+ * @typedef {import('./types/index').Custom_Mode_Strat<string[]>} Custom_Mode_Strat
+ * @typedef {import('./types/index').Light_Dark_Mode_Strat<STATIC>} Light_Dark_Mode_Strat
  */
 
 /** @param {import('./types/script').Script_Params} params */
 export function script(params) {
   const html = document.documentElement
-  const { config_SK, config, constants } = params
+  const {
+    config_SK,
+    config,
+    constants: { STRATS, MODES },
+  } = params
 
-  const { STRATS } = constants
+  let init_library = true
 
-  // ---------------------------------------------------------------------
-  // UTILS ---------------------------------------------------------------
-  // ---------------------------------------------------------------------
+  const valid_values = construct_valid_values()
+  const default_SC = construct_default_SC()
 
-  /**
-   * @typedef {Record<string, any>} Generic_Obj - A generic object
-   */
+  // #region HELPERS --------------------------------------------------------------------------
+  /** @param {string} str */
+  function capitalize(str) {
+    if (!str) return ''
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+  }
 
   /**
    * Parses a JSON string and returns the corresponding object if valid.
-   *
    * @param {string | undefined | null} string - The JSON string to parse.
-   * @returns {Generic_Obj | undefined} The parsed object if the input is a valid JSON object string, otherwise undefined.
+   * @returns {Record<string, any> | undefined} The parsed object if the input is a valid JSON object string, otherwise undefined.
    */
   function parse_JsonToObj(string) {
     if (typeof string !== 'string' || string.trim() === '') return undefined
@@ -39,9 +51,8 @@ export function script(params) {
 
   /**
    * Compares two objects to determine if they are the same.
-   *
-   * @param {Generic_Obj} obj1 - The first object to compare.
-   * @param {Generic_Obj} obj2 - The second object to compare.
+   * @param {Record<string, any>} obj1 - The first object to compare.
+   * @param {Record<string, any>} obj2 - The second object to compare.
    * @returns {boolean} `true` if the objects are the same, otherwise `false`.
    */
   function isSameObj(obj1, obj2) {
@@ -63,110 +74,138 @@ export function script(params) {
 
     return true
   }
+  // #endregion
 
-  // ---------------------------------------------------------------------
-  // CONFIG --------------------------------------------------------------
-  // ---------------------------------------------------------------------
-
-  function construct_DefaultST() {
-    /** @type {Storage_Config} */ // @ts-ignore
-    const default_ST = {}
-
-    for (const [key, value] of Object.entries(config)) {
-      if (value.strategy === STRATS.mono) Object.assign(default_ST, { [key]: value.key })
-      else Object.assign(default_ST, { [key]: value.default })
-    }
-
-    return default_ST
-  }
-  const default_SC = construct_DefaultST()
-
-  function construct_Valid_Values() {
-    /** @type {Record<string, string[]>} */ // @ts-ignore
+  // #region UTILS ----------------------------------------------------------------------------
+  function construct_valid_values() {
+    /** @type {Partial<Record<Prop, Set<string>>>} */
     const valid_values = {}
 
     for (const [key, value] of Object.entries(config)) {
-      if (value.strategy === STRATS.mono) valid_values[key] = [value.key]
-      else if (value.strategy === STRATS.multi.light_dark)
-        valid_values[key] = [
+      const typed_key = /** @type {Prop} */ (key)
+
+      if (value.strategy === STRATS.mono) valid_values[typed_key] = new Set([value.key])
+      else if (value.strategy === STRATS.light_dark) {
+        valid_values[typed_key] = new Set([
           value.keys.light,
           value.keys.dark,
-          ...(value.enableSystem && value.keys.system ? [value.keys.system] : []),
+          ...(value.enableSystem ? [value.keys.system] : []),
           ...(value.keys.custom || []),
-        ]
-      else valid_values[key] = value.keys
+        ])
+      } else valid_values[typed_key] = new Set(value.keys)
     }
 
     return valid_values
   }
-  const valid_values = construct_Valid_Values()
 
-  const supports_CMPref = window.matchMedia && window.matchMedia('(prefers-color-scheme)').matches
+  function construct_default_SC() {
+    /** @type {Storage_Config} */
+    const default_SC = {}
 
-  // ---------------------------------------------------------------------
-  // STORAGE THEME -------------------------------------------------------
-  // ---------------------------------------------------------------------
+    for (const [key, value] of Object.entries(config)) {
+      const typed_key = /** @type {Prop} */ (key)
 
+      if (value.strategy === STRATS.mono) default_SC[typed_key] = value.key
+      else default_SC[typed_key] = value.default
+    }
+
+    return default_SC
+  }
+  // #endregion
+
+  // #region CONFIG VALIDATION ----------------------------------------------------------------
   /**
-   * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the storage config functions.
-   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Record<keyof Config, boolean>}} SC_Validation The theme validation info.
+   * @param {string} msg
+   * @param {any[]} args
    */
-
-  /**
-   * Retrieves the storage configuration from local storage and parses it if valid object.
-   * @param {SC_Opts} [opts] The options object.
-   * @return {SC_Validation} The parsed object if the stored value is a valid JSON object string, otherwise undefined.
-   */
-  function get_SC(opts) {
-    const value = localStorage.getItem(config_SK)
-    const parsed = parse_JsonToObj(value)
-    const validation = validate_SC(parsed, { fallback: opts?.fallback, verbose: opts?.verbose })
-    return validation
+  function warn(msg, ...args) {
+    console.warn(`[next-themify] ${msg}`, ...args)
+    init_library = false
   }
 
   /**
-   * Safely parses and validates the received string, returning a valid StorageConfig (invalid keys are replaced with corresponding fallback/default theme's key) and a boolean indicating if the string validated successfully.
-   * @param {Generic_Obj | undefined} obj The object to validate.
+   * @param {Multi_Strat | Custom_Mode_Strat} obj
+   * @param {Prop} prop
+   */
+  const validate_multi_strat = (obj, prop) => {
+    const is_valid = obj.keys.includes(obj.default)
+    if (!is_valid) warn(`${capitalize(prop)} validation: "default" key must be one of the provided keys`)
+  }
+
+  /** @param {Light_Dark_Mode_Strat} obj */
+  const validate_light_dark_mode_strat = (obj) => {
+    if (obj.keys.light === obj.keys.dark)
+      return warn('Func: validate_light_dark_mode_strat - "light" and "dark" keys must be different', {
+        keys: { light: obj.keys.light, dark: obj.keys.dark },
+      })
+    if (obj.enableSystem && !obj.keys.system)
+      return warn('Func: validate_light_dark_mode_strat - "system" key must be provided if "system" is enabled', { keys: obj.keys })
+    if (obj.enableSystem && (obj.keys.system === obj.keys.light || obj.keys.system === obj.keys.dark))
+      return warn('Func: validate_light_dark_mode_strat - "system" key must be different from "light" and "dark" keys', { keys: obj.keys })
+    if (obj.keys.custom && obj.keys.custom.length === 0)
+      return warn('Func: validate_light_dark_mode_strat - at least one "custom" key must be provided', { keys: obj.keys.custom })
+    if (!valid_values['mode']?.has(obj.default))
+      return warn('Func: validate_light_dark_mode_strat - "default" key must be one of the provided keys', { keys: obj.keys, default: obj.default })
+    if (obj.enableSystem && obj.fallback === obj.keys.system)
+      return warn('Func: validate_light_dark_mode_strat - "fallback" key must be different from "system" key', {
+        keys: { system: obj.keys.system },
+        fallback: obj.fallback,
+      })
+  }
+
+  function validate_config() {
+    for (const [key, strat_obj] of Object.entries(config)) {
+      const typed_key = /** @type {Prop} */ (key)
+
+      if (strat_obj.strategy === STRATS.mono) continue
+      else if (strat_obj.strategy === STRATS.multi || strat_obj.strategy === STRATS.custom) validate_multi_strat(strat_obj, typed_key)
+      else if (strat_obj.strategy === STRATS.light_dark) validate_light_dark_mode_strat(strat_obj)
+    }
+  }
+  // #endregion
+
+  // #region STORAGE CONFIG (SC) ----------------------------------------------------------------
+
+  /**
+   * @typedef {{fallback?: Storage_Config, verbose?: boolean}} SC_Opts The options object for the SC functions.
+   * @typedef {{SC: Storage_Config, passed: boolean, validation_results?: Partial<Record<Prop, [string, boolean]>>}} SC_Validation The SC validation info.
+   */
+
+  /**
+   * Safely parses and validates the received string, returning a valid SC (invalid keys are replaced with corresponding fallback/default theme's key) and a boolean indicating if the string validated successfully.
+   * @param {Record<string, any> | undefined | null} obj_to_validate The object to validate.
    * @param {SC_Opts} [opts] The options object.
    * @return {SC_Validation} The theme validation info.
    */
-  function validate_SC(obj, opts) {
+  function validate_SC(obj_to_validate, opts) {
     const fallback_SC = opts?.fallback || default_SC
-    if (!obj) return { SC: fallback_SC, passed: false }
+    if (!obj_to_validate) return { SC: fallback_SC, passed: false }
 
-    /** @type {SC_Validation['SC']} */
+    /** @type {Storage_Config} */
     const valid_SC = {}
     let passed = true
-    /** @type {NonNullable<SC_Validation['validation_results']>} */ // @ts-expect-error
+
+    /** @type {Record<string, [string, boolean]>} */
     const validation_results = {}
 
-    for (const config_key in config) {
-      const value_to_validate = obj[config_key]
-
-      /** @type {string[]} */
-      let valid_values = []
-      /** @type {keyof Config} */ // @ts-ignore
-      const key = config_key
-      if (!config[key]) continue
-
-      if (config[key].strategy === 'mono') valid_values = [config[key].key]
-      else if (config[key].strategy === 'light_dark') {
-        valid_values = [
-          config[key].keys.light,
-          config[key].keys.dark,
-          ...(config[key].enableSystem && config[key].keys.system ? config[key].keys.system : []),
-          ...(config[key].keys.custom ? config[key].keys.custom : []),
-        ]
-      } else valid_values = config[key].keys
-
-      if (!valid_values.includes(value_to_validate)) {
-        Object.assign(valid_SC, { [key]: fallback_SC[key] })
-        Object.assign(validation_results, { [key]: false })
+    for (const [key, value_to_validate] of Object.entries(obj_to_validate)) {
+      if (!(key in valid_values)) {
+        validation_results[key] = [value_to_validate, false]
         passed = false
-      } else {
-        Object.assign(valid_SC, { [key]: value_to_validate })
-        Object.assign(validation_results, { [key]: true })
+        continue
       }
+
+      const typed_key = /** @type {keyof typeof config} */ (key)
+
+      if (!valid_values[typed_key]?.has(value_to_validate)) {
+        valid_SC[typed_key] = fallback_SC[typed_key]
+        validation_results[typed_key] = [value_to_validate, false]
+        passed = false
+        continue
+      }
+
+      valid_SC[typed_key] = value_to_validate
+      validation_results[typed_key] = [value_to_validate, true]
     }
 
     if (opts?.verbose) return { SC: valid_SC, passed, validation_results }
@@ -174,20 +213,44 @@ export function script(params) {
   }
 
   /**
-   * @param {Storage_Config} obj
-   * @param {object} [opts]
-   * @param {boolean} [opts.force]
+   * Retrieves and validates the SC object from local storage.
+   * @param {SC_Opts} [opts] - Optional settings for the SC retrieval.
+   * @return {SC_Validation} - The SC validation info.
    */
-  function set_SC(obj, opts) {
-    const { SC: current_SC, passed } = get_SC()
+  function get_SC(opts) {
+    const storage_string = localStorage.getItem(config_SK)
+    const parsed_obj = parse_JsonToObj(storage_string)
+    const validation = validate_SC(parsed_obj, { fallback: opts?.fallback, verbose: opts?.verbose })
+    return validation
+  }
+
+  /**
+   * Stores/Updates the SC in the local storage after validating it.
+   * @param {Storage_Config} SC_to_set - The SC to store.
+   * @param {object} [opts] - Optional settings for the SC setting process.
+   * @param {boolean} [opts.force] - Forces the SC to be stored even if it's the same as the current one.
+   */
+  function set_SC(SC_to_set, opts) {
+    const { SC: current_SC, passed: is_current_SC_valid } = get_SC()
+    const { SC: valid_SC_to_set, validation_results } = validate_SC(SC_to_set, { verbose: true })
+
+    const tried_to_set_invalid_keys =
+      validation_results &&
+      Object.entries(validation_results)
+        .filter(([key, [value, passed]]) => !passed)
+        .map(([key, [value]]) => [key, value])
+
+    if (tried_to_set_invalid_keys)
+      warn('Func: set_SC - Tried to store invalid keys in storage config object.', Object.fromEntries(tried_to_set_invalid_keys))
 
     const new_SC = { ...current_SC }
 
-    // @ts-expect-error
-    for (const key in obj) new_SC[key] = obj[key]
+    for (const key in valid_SC_to_set) {
+      const typed_key = /** @type {keyof typeof valid_SC_to_set} */ (key)
+      new_SC[typed_key] = valid_SC_to_set[typed_key]
+    }
 
-    const must_force = opts?.force
-    const must_update = must_force || !passed || (passed && !isSameObj(new_SC, current_SC))
+    const must_update = opts?.force || !is_current_SC_valid || (is_current_SC_valid && !isSameObj(new_SC, current_SC))
 
     if (!must_update) return
 
@@ -195,67 +258,70 @@ export function script(params) {
     // TODO: trigger custom storage event
   }
 
-  // ---------------------------------------------------------------------
-  // COLOR MODE ----------------------------------------------------------
-  // ---------------------------------------------------------------------
+  // #endregion
+
+  // #region COLOR MODE (CM) ----------------------------------------------------------------
 
   /**
-   * @typedef {{CM: string, resolved: boolean}} Revolve_CM_Result - The resolved color mode info.
-   * @typedef {{CM: string, passed: false, from: string}|{CM: string, passed: true}} CM_Validation - The color mode validation info.
+   * @typedef {{CM: string, passed: false, received: string, valid_values: string[]}|{CM: string, passed: true}} CM_Validation - The color mode validation info.
+   * @typedef {{supported: true, CM: LIGHT | DARK} | {supported: false, CM: string}} CM_Pref - The user's preferred color mode.
    */
 
   /**
-   * Indicates if the browser supports ColorMode preference.
-   * @returns {undefined | 'light' | 'dark'} Either true if it's supported, or false otherwise.
+   * Retrieves the user's preferred color scheme (if supported) or a fallback one.
+   * @returns {CM_Pref} The user's preferred color scheme
    */
   function get_CMPref() {
-    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const fallback_CM =
+      (config.mode?.strategy === 'mono' && config.mode.key) ||
+      ((config.mode?.strategy === 'custom' || (config.mode?.strategy === 'light_dark' && config.mode.enableSystem)) && config.mode.default) ||
+      (config.mode?.strategy === 'light_dark' && config.mode.default) ||
+      MODES.light
+
+    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return { supported: false, CM: fallback_CM }
+
+    const pref_CM = window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
+    return { supported: true, CM: pref_CM }
   }
 
   /**
-   * Resolves the color mode based on the provided color mode and system support&preferences.
-   * @param {string} CM - The color mode to resolve if necessary.
-   * @returns {Revolve_CM_Result | void} - The resolved color mode info.
-   */
-  function resolve_CM(CM) {
-    if (!config.mode) return console.error('[Next-Themify] Func: resolve_CM - Trying to resolve color mode but color mode is not enabled.')
-
-    const CM_validation = validate_CM(CM)
-
-    const is_valid = CM_validation && CM_validation.passed
-    if (!is_valid) return console.error('[Next-Themify] Func: resolve_CM - Trying to resolve color mode but the provided color mode is not valid. Provided color mode: ', CM)
-
-    if (config.mode.strategy === 'light_dark' && config.mode.enableSystem && CM === config.mode.keys.system) {
-      const CM_pref = get_CMPref()
-      if (!CM_pref) return { CM: config.mode.fallback, resolved: true }
-      return { CM: CM_pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light, resolved: true }
-    }
-
-    return { CM, resolved: false }
-  }
-
-  /**
-   * Validates the provided color mode (CM) against the configured valid values.
-   *
+   * Validates the provided CM
    * @param {string} CM - The color mode to validate.
    * @param {Object} [opts] - The options object.
    * @param {string} [opts.fallback] - The fallback color mode to use if the validation fails.
-   * @returns {CM_Validation | void} The color mode validation info.
+   * @returns {CM_Validation} - The color mode validation info.
    */
   function validate_CM(CM, opts) {
-    if (!config.mode || !valid_values['mode']) return console.error('[Next-Themify] Func: validate_CM - Trying to validate color mode but color mode is not enabled.')
+    const valid_CMs = valid_values['mode']
 
-    const is_valid = valid_values['mode'].includes(CM)
+    if (!valid_CMs || !default_SC['mode']) {
+      warn(`Func: validate_CM - Tried to validate a color mode but "mode" key is missing from the config object.`)
+      return { CM: MODES.light, passed: false, received: CM, valid_values: [] }
+    }
 
-    if (!is_valid) {
-      let fallback_CM = opts?.fallback || (config.mode.strategy === 'mono' ? config.mode.key : config.mode.default)
+    const passed = valid_CMs.has(CM)
 
-      return { CM: fallback_CM, passed: false, from: CM }
+    if (!passed) {
+      const fallback_CM =
+        opts?.fallback ||
+        (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_SC['mode'] === config.mode.keys.system && !get_CMPref()
+          ? config.mode.fallback
+          : default_SC['mode'])
+      return { CM: fallback_CM, passed: false, received: CM, valid_values: Array.from(valid_CMs) }
     }
 
     return { CM, passed: true }
   }
 
-  console.log(validate_CM('system'))
+  /**
+   * @param {string} CM
+   */
+  function resolve_CM(CM) {
+    if (!config.mode) return warn('Func: resolve_CM - Trying to resolve color mode but "mode" key is missing from the config object.')
+    if (config.mode.strategy !== 'light_dark' || !config.mode.enableSystem)
+      return warn('Func: resolve_CM - Trying to resolve color mode but "system" but ')
+  }
+  // #endregion
+
+  console.log(get_CMPref())
 }
