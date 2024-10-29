@@ -1,6 +1,7 @@
 import { CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
 import { AtLeastOne, IsLiteralArray } from './utils'
 
+// #region Keys ------------------------------------------------------------------------------------------
 type Mono_Key = string
 type Custom_Keys = string[]
 type Multi_Keys = string[]
@@ -21,12 +22,17 @@ type Keys = {
 }
 export type Keys_Config = AtLeastOne<Keys> | null
 
+// #region Prop ------------------------------------------------------------------------------------------
 export type Prop = keyof NonNullable<Keys_Config>
 
-export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key }
-export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] }
-export type Custom_Strat<Keys extends string[]> = { strategy: CUSTOM; keys: Keys; default: Keys[number] }
+// #region Strats ----------------------------------------------------------------------------------------
+export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key } // Static -> Mono_Strat<string>; Default -> Mono_Strat<DEFAULT>; Dynamic -> Mono_Strat<'string'>
+export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] } // Static -> Multi_Strat<string[]>; Dynamic -> Multi_Strat<['string1', 'string2']>
+export type Custom_Strat<Keys extends string[]> = { strategy: CUSTOM; keys: Keys; default: Keys[number] } // Static -> Custom_Strat<string[]>; Dynamic -> Custom_Strat<['string1', 'string2']>
 
+// Static -> Light_Dark_Strat<{light: string, dark: string, system: string, custom: string[]}>;
+// Default -> Light_Dark_Strat;
+// Dynamic -> Light_Dark_Strat<{ light: 'custom light', dark: 'custom dark', system: 'custom system', custom: ['custom 1', 'custom 2'] }>
 export type Light_Dark_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = {
   strategy: LIGHT_DARK
 } & (
@@ -68,7 +74,16 @@ export type Light_Dark_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = 
     }
 )
 
+// #region Config ----------------------------------------------------------------------------------------
+
+// Static Mono -> Generic_Prop<string>; Static Multi -> Generic_Prop<string[]>
+// Default Mono -> Generic_Prop<DEFAULT>
+// Dynamic Mono -> Generic_Prop<'some string'>; Dynamic Multi -> Generic_Prop<['string1', 'string2']>
 type Generic_Prop<K extends Basic_Key> = K extends Mono_Key ? Mono_Strat<K> : K extends Multi_Keys ? Multi_Strat<K> : never
+
+// Static Mono -> Mode_Prop<string>; Static Custom -> Mode_Prop<string[]>; Static Light_Dark -> Mode_Prop<{light: string, dark: string, system: string, custom: string[]}>
+// Default Mono -> Mode_Prop<DEFAULT>; Default Light_Dark -> Mode_Prop<{}>;
+// Dynamic Mono -> Mode_Prop<'some string'>; Dynamic Custom -> Mode_Prop<['string1', 'string2']>; Dynamic Light_Dark -> Mode_Prop<{ light: 'custom light', dark: 'custom dark', system: 'custom system', custom: ['custom 1', 'custom 2'] }>
 type Mode_Prop<K extends Mode_Key> = K extends Mono_Key
   ? Mono_Strat<K>
   : K extends Custom_Keys
