@@ -12,16 +12,28 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = null satisfies Keys
+  const keys = {
+    mode: {
+      custom: ['custom', 'prova']
+    }
+  } as const satisfies Keys
 
   return (
     <html lang='en'>
       <body>
-        <ThemeProvider
+        <ThemeProvider<typeof keys>
           config={{
             mode: {
-              strategy: 'mono',
-              key: 'default'
+              strategy: 'light_dark',
+              enableSystem: true,
+              default: 'system',
+              fallback: 'dark',
+              keys: {
+                light: 'light',
+                dark: 'dark',
+                system: 'system',
+                custom: ['custom', 'prova']
+              }
             }
           }}
         >
