@@ -1,13 +1,12 @@
-import { Config as Construct_Config, Prop } from './index'
-import { STATIC, STRATS } from '../constants'
-
-export type Config = Construct_Config<STATIC>
+import { Config, Prop } from '.'
+import { MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
   config_SK: string
-  config: Config
+  config: Config<STATIC>
   constants: {
     STRATS: typeof STRATS
+    MODES: typeof MODES
   }
 }
 

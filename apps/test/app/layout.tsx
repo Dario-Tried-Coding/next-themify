@@ -13,22 +13,31 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   const keys = {
-    theme: 'custom-theme',
+    mode: {
+      custom: ['prova'],
+    },
   } as const satisfies Keys
 
   return (
     <html lang='en'>
       <body>
-        <ThemeProvider<typeof keys>
+        <ThemeProvider
           config={{
+            mode: {
+              strategy: 'light_dark',
+              enableSystem: true,
+              default: 'system',
+              fallback: 'dark',
+              keys: {
+                light: 'light',
+                dark: 'dark',
+                system: 'system',
+              },
+            },
             theme: {
               strategy: 'mono',
-              key: 'custom-theme',
+              key: 'default',
             },
-            mode: {
-              strategy: 'mono',
-              key: 'default'
-            }
           }}
         >
           {children}

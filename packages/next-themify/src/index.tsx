@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, PropsWithChildren } from 'react'
-import { CONFIG_SK, STRATS } from './constants'
+import { CONFIG_SK, MODES, STRATS } from './constants'
 import { script } from './script'
 import { Config, Keys } from './types'
 import { Script_Params } from './types/script'
@@ -17,11 +17,11 @@ interface ThemeProviderProps<K extends Keys> extends PropsWithChildren {
   config_sk?: string
   config: Config<K>
 }
-export function ThemeProvider<K extends Keys = never>({ config_sk, config, children }: ThemeProviderProps<K>) {
+export function ThemeProvider<K extends Keys = null>({ config_sk, config, children }: ThemeProviderProps<K>) {
   const scriptArgs = JSON.stringify({
     config_SK: config_sk || CONFIG_SK,
     config: config,
-    constants: { STRATS },
+    constants: { STRATS, MODES },
   } satisfies Script_Params)
 
   return (
