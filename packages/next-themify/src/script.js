@@ -3,6 +3,8 @@
 /**
  * @typedef {import('./types/index').Prop} Prop
  * @typedef {import('./types/script').Storage_Config} Storage_Config
+ * @typedef {import('./types/script').SC_Validation<false>} SC_Validation_Dry
+ * @typedef {import('./types/script').SC_Validation<true>} SC_Validation_Verbose
  */
 
 /** @param {import('./types/script').Script_Params} params */
@@ -105,9 +107,9 @@ export function script(params) {
 
   // #endregion
 
-  /** Available values of ONLY the props provided in the config obj */
+  /** All the available values of ONLY the props that Next-Themify must handle (based on config obj). */
   const valid_values = construct_valid_values()
-  /** Default values of ONLY the props provided in the config obj */
+  /** Default values of ONLY the props that Next-Themify must handle (based on config obj). */
   const default_SC = construct_default_SC()
 
   // #region CONFIG VALIDATION ------------------------------------------------------------------------------------------
@@ -124,7 +126,7 @@ export function script(params) {
       // Is "keys" not empty?
       const is_empty = obj.keys.length === 0
       if (is_empty) warn('Func: validate_multi_x_custom_strat - "keys" cannot be empty.', obj)
-      
+
       // Are all keys strings?
       const are_all_keys_strings = obj.keys.every((k) => typeof k === 'string')
       if (!are_all_keys_strings) warn('Func: validate_multi_x_custom_strat - "keys" must contain only strings.', obj.keys)
@@ -132,7 +134,7 @@ export function script(params) {
       // Is "default" provided?
       const is_default_provided = obj.default !== undefined
       if (!is_default_provided) warn('Func: validate_multi_x_custom_strat - "default" key must be provided.', obj)
-      
+
       // Is "default" a string?
       const is_default_string = typeof obj.default === 'string'
       if (!is_default_string) warn('Func: validate_multi_x_custom_strat - "default" key must be a string.', obj)
@@ -146,7 +148,6 @@ export function script(params) {
 
     /** @type {import('./types/script').Validate_Light_Dark_Strat} */
     function validate_light_dark_mode(obj) {
-      
       // KEYS -------------------------------------------------
 
       // Are all keys strings?
@@ -204,7 +205,8 @@ export function script(params) {
       // Is "fallback" key provided only if "enableSystem" is true?
       // @ts-expect-error - "fallback" should'nt be provided if "enableSystem" is false
       const is_fallback_wrongly_provided = !obj.enableSystem && obj.fallback
-      if (is_fallback_wrongly_provided) warn('Func: validate_light_dark_mode - "fallback" key should not be provided if "enableSystem" is false.', obj)
+      if (is_fallback_wrongly_provided)
+        warn('Func: validate_light_dark_mode - "fallback" key should not be provided if "enableSystem" is false.', obj)
 
       // Is "fallback" key a string (if provided)?
       const is_fallback_string = !obj.enableSystem || (obj.enableSystem && typeof obj.fallback === 'string')
@@ -233,4 +235,98 @@ export function script(params) {
 
   let init_library = true
   validate_config()
+
+  // #region STORAGE CONFIG (SC) -----------------------------------------------------------------------------------------
+
+  /**
+   * It returns a Storage Config (SC) object with ONLY the props that Next-Themify must handle (based on the config obj).
+   *
+   * Each prop will either contain:
+   * - The value from the obj to validate (if provided and valid)
+   * - The provided fallback value (if provided and valid)
+   * - The default value from the config obj
+   *
+   * @type {import('./types/script').Validate_SC}
+   */
+  function validate_SC(obj, opts) {
+    /**
+     * The fallback value for ONLY the props that Next-Themify must handle.
+     *
+     * It will either be:
+     * - The default value from the config obj
+     * - The provided fallback value (if provided and valid)
+     */
+    const fallback_SC = default_SC // Initially take as fallback the default values from the config obj
+
+    // If opts.fallback_SC is provided, for each prop that Next-Themify must handle use instead the provided fallback value (if provided and valid)
+    if (opts?.fallback_SC) {
+      for (const key in fallback_SC) {
+        const typed_key = /** @type {Prop} */ (key)
+        const override_fallback = opts.fallback_SC[typed_key]
+        const is_valid_fallback = override_fallback && valid_values[typed_key]?.has(override_fallback)
+        if (is_valid_fallback) fallback_SC[typed_key] = override_fallback
+      }
+    }
+
+    const verbose_imp_validation = /** @type {SC_Validation_Verbose} */ ({ SC: fallback_SC, passed: false, results: {} })
+    const dry_imp_validation = /** @type {SC_Validation_Dry} */ ({ SC: fallback_SC, passed: false })
+
+    // @ts-expect-error - If opts.verbose is true, validation results must be included
+    if (!obj) return opts?.verbose ? verbose_imp_validation : dry_imp_validation
+
+    /**
+     * The valid value to return for ONLY the props that Next-Themify must handle.
+     *
+     * - The value from the obj to validate (if provided and valid)
+     * - The fallback one (either the provided or the default one from the config obj)
+     */
+    const valid_SC = /** @type {Storage_Config} */ ({})
+    const results = /** @type {verbose_SC_validation['results']} */ ({})
+    let passed = true
+
+    // Cycle through each prop in the obj to validate.
+    // Valid prop: one of the props that Next-Themify must handle.
+    //
+    // If not valid prop, it will be ignored.
+    // If valid prop and valid value, it will be part of the Storage Config obj.
+    // If valid prop end invalid value, the fallback value will be used instead.
+
+    for (const [key, value_to_validate] of Object.entries(obj)) {
+      if (!(key in valid_values)) {
+        results[key] = [value_to_validate, false]
+        passed = false
+        continue
+      }
+
+      const typed_key = /** @type {Prop} */ (key)
+
+      const is_valid_value = value_to_validate && valid_values[typed_key]?.has(value_to_validate)
+
+      if (is_valid_value) {
+        valid_SC[typed_key] = value_to_validate
+        results[typed_key] = [value_to_validate, true]
+        continue
+      }
+
+      valid_SC[typed_key] = fallback_SC[typed_key]
+      results[typed_key] = [value_to_validate, false]
+      passed = false
+    }
+
+    // If some props are missing, add them to the Storage Config obj with the fallback value.
+    for (const key in fallback_SC) {
+      const typed_key = /** @type {Prop} */ (key)
+
+      if (key in valid_SC) continue
+      valid_SC[typed_key] = fallback_SC[typed_key]
+    }
+
+    const verbose_SC_validation = /** @type {SC_Validation_Verbose} */ ({ SC: valid_SC, passed, results })
+    const dry_SC_validation = /** @type {SC_Validation_Dry} */ ({ SC: valid_SC, passed })
+
+    //@ts-expect-error - - If opts.verbose is true, validation results must be included
+    return opts?.verbose ? verbose_SC_validation : dry_SC_validation
+  }
+
+  // #endregion
 }
