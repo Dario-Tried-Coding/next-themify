@@ -35,8 +35,8 @@ export function script(params) {
 
   /**
    * Compares two objects to determine if they are the same.
-   * @param {Record<string, any>} obj1 - The first object to compare.
-   * @param {Record<string, any>} obj2 - The second object to compare.
+   * @param {Record<string, any> | undefined | null} obj1 - The first object to compare.
+   * @param {Record<string, any> | undefined | null} obj2 - The second object to compare.
    * @returns {boolean} `true` if the objects are the same, otherwise `false`.
    */
   function isSameObj(obj1, obj2) {
@@ -76,19 +76,19 @@ export function script(params) {
     init_library = false
   }
 
-  function construct_valid_values() {
-    /** @type {import('./types/script').Valid_Values} */
-    const valid_values = {}
+  function construct_available_values() {
+    /** @type {import('./types/script').Available_Values} */
+    const available_values = {}
 
     for (const [key, strat_obj] of Object.entries(config)) {
       const typed_key = /** @type {Prop} */ (key)
 
-      if (strat_obj.strategy === 'mono') valid_values[typed_key] = new Set([strat_obj.key])
-      else if (strat_obj.strategy === 'light_dark') valid_values[typed_key] = new Set(Object.values(strat_obj.keys).flat())
-      else valid_values[typed_key] = new Set(strat_obj.keys)
+      if (strat_obj.strategy === 'mono') available_values[typed_key] = new Set([strat_obj.key])
+      else if (strat_obj.strategy === 'light_dark') available_values[typed_key] = new Set(Object.values(strat_obj.keys).flat())
+      else available_values[typed_key] = new Set(strat_obj.keys)
     }
 
-    return valid_values
+    return available_values
   }
 
   function construct_default_SC() {
@@ -108,7 +108,7 @@ export function script(params) {
   // #endregion
 
   /** All the available values of ONLY the props that Next-Themify must handle (based on config obj). */
-  const valid_values = construct_valid_values()
+  const available_values = construct_available_values()
   /** Default values of ONLY the props that Next-Themify must handle (based on config obj). */
   const default_SC = construct_default_SC()
 
@@ -242,13 +242,19 @@ export function script(params) {
    * It returns a Storage Config (SC) object with ONLY the props that Next-Themify must handle (based on the config obj).
    *
    * Each prop will either contain:
-   * - The value from the obj to validate (if provided and valid)
+   * - The value from the stringified obj to validate (if provided and valid)
    * - The provided fallback value (if provided and valid)
    * - The default value from the config obj
    *
+   * It won't execute if the provided string is not a valid obj. In this case it will return the fallback values (provided or default).
+   *
+   * If the string obj is missing some of the props that Next-Themify must handle, they will be added to the SC object with the fallback value (provided or default).
+   *
    * @type {import('./types/script').Validate_SC}
    */
-  function validate_SC(obj, opts) {
+  function validate_SC(unsafe_string, opts) {
+    const obj = parse_JsonToObj(unsafe_string) // Parse the string to an object (if proper stringified obj)
+
     /**
      * The fallback value for ONLY the props that Next-Themify must handle.
      *
@@ -263,16 +269,20 @@ export function script(params) {
       for (const key in fallback_SC) {
         const typed_key = /** @type {Prop} */ (key)
         const override_fallback = opts.fallback_SC[typed_key]
-        const is_valid_fallback = override_fallback && valid_values[typed_key]?.has(override_fallback)
+        const is_valid_fallback = override_fallback && available_values[typed_key]?.has(override_fallback)
         if (is_valid_fallback) fallback_SC[typed_key] = override_fallback
       }
     }
 
-    const verbose_imp_validation = /** @type {SC_Validation_Verbose} */ ({ SC: fallback_SC, passed: false, results: {} })
-    const dry_imp_validation = /** @type {SC_Validation_Dry} */ ({ SC: fallback_SC, passed: false })
+    if (!obj) {
+      /** @type {SC_Validation_Verbose} */
+      const verbose_imp_validation = { SC: fallback_SC, passed: false, executed: false, received: unsafe_string }
+      /** @type {SC_Validation_Dry} */
+      const dry_imp_validation = { SC: fallback_SC, passed: false }
 
-    // @ts-expect-error - If opts.verbose is true, validation results must be included
-    if (!obj) return opts?.verbose ? verbose_imp_validation : dry_imp_validation
+      // @ts-expect-error - If opts.verbose is true, validation info must be included
+      return opts?.verbose ? verbose_imp_validation : dry_imp_validation
+    }
 
     /**
      * The valid value to return for ONLY the props that Next-Themify must handle.
@@ -281,7 +291,7 @@ export function script(params) {
      * - The fallback one (either the provided or the default one from the config obj)
      */
     const valid_SC = /** @type {Storage_Config} */ ({})
-    const results = /** @type {verbose_SC_validation['results']} */ ({})
+    const results = /** @type {import('./types/script').SC_Validation_Executed['results']} */ ({})
     let passed = true
 
     // Cycle through each prop in the obj to validate.
@@ -292,7 +302,7 @@ export function script(params) {
     // If valid prop end invalid value, the fallback value will be used instead.
 
     for (const [key, value_to_validate] of Object.entries(obj)) {
-      if (!(key in valid_values)) {
+      if (!(key in available_values)) {
         results[key] = [value_to_validate, false]
         passed = false
         continue
@@ -300,7 +310,7 @@ export function script(params) {
 
       const typed_key = /** @type {Prop} */ (key)
 
-      const is_valid_value = value_to_validate && valid_values[typed_key]?.has(value_to_validate)
+      const is_valid_value = value_to_validate && available_values[typed_key]?.has(value_to_validate)
 
       if (is_valid_value) {
         valid_SC[typed_key] = value_to_validate
@@ -321,11 +331,88 @@ export function script(params) {
       valid_SC[typed_key] = fallback_SC[typed_key]
     }
 
-    const verbose_SC_validation = /** @type {SC_Validation_Verbose} */ ({ SC: valid_SC, passed, results })
-    const dry_SC_validation = /** @type {SC_Validation_Dry} */ ({ SC: valid_SC, passed })
+    /** @type {SC_Validation_Verbose} */
+    const verbose_SC_validation = { SC: valid_SC, passed, executed: true, results, parsed: obj }
+    /** @type {SC_Validation_Dry} */
+    const dry_SC_validation = { SC: valid_SC, passed }
 
-    //@ts-expect-error - - If opts.verbose is true, validation results must be included
+    //@ts-expect-error - If opts.verbose is true, validation info must be included
     return opts?.verbose ? verbose_SC_validation : dry_SC_validation
+  }
+
+  /**
+   * It retrieves and validates the SC object from the local storage.
+   *
+   * If no SC or invalid, it will return the fallback values (provided or default).
+   *
+   * @type {import('./types/script').Get_SC}
+   */
+  function get_SC(opts) {
+    const storage_string = localStorage.getItem(config_SK) // Retrieve WHATEVER is stored in the device local storage (if present)
+    const validation = validate_SC(storage_string, opts) // Validate the object (if proper obj) o give back fallback values (provided or default)
+    return validation
+  }
+
+  /**
+   * It sets/updates the SC with the provided new values (if ALL the provided obj is valid).
+   * 
+   * If both the new and old SCs are valid, it will execute only if needed (if the two are different).
+   * 
+   * @type {import('./types/script').Set_SC}
+   */
+  function set_SC(SC, opts) {
+    const current_SC_validation = get_SC({ verbose: true })
+    const SC_validation = validate_SC(JSON.stringify(SC), { verbose: true })
+
+    // It will always execute since we're passing a stringified obj
+    // If the provided SC holds invalid keys/values, throw a warning and do not update the SC object.
+    if (!SC_validation.passed && SC_validation.executed) {
+      warn('Func: set_SC - Tried to store invalid keys in storage config object.', SC_validation.results)
+
+      /** @type {import('./types/script').Verbose_Set_SC} */
+      const verbose_info = {
+        updated: false,
+        is_valid: false,
+        received: SC,
+        available_values,
+        was_valid: current_SC_validation.passed,
+        ...(!current_SC_validation.executed || !isSameObj(SC, current_SC_validation.parsed)
+          ? { are_same: false, old: current_SC_validation.executed ? current_SC_validation.parsed : current_SC_validation.received }
+          : { are_same: true }),
+      }
+
+      // @ts-expect-error - If opts.verbose is false there's no need to return anything
+      return opts?.verbose ? verbose_info : undefined
+    }
+
+    const new_SC = { ...current_SC_validation.SC } // ONLY the props that Next-Themify must handle. Either the current or default values
+
+    // Give new_SC the new values to set (only the required props)
+    for (const key in SC_validation.SC) {
+      const typed_key = /** @type {keyof typeof SC_validation['SC']} */ (key)
+      new_SC[typed_key] = SC_validation.SC[typed_key]
+    }
+
+    const must_update = opts?.force || !current_SC_validation.passed || (current_SC_validation.passed && !isSameObj(current_SC_validation.SC, new_SC))
+
+    /** @type {import('./types/script').Verbose_Set_SC} */
+    const verbose_info = {
+      updated: must_update,
+      is_valid: true,
+      received: SC,
+      was_valid: current_SC_validation.passed,
+      ...(isSameObj(current_SC_validation.executed ? current_SC_validation.parsed : undefined, SC)
+        ? { are_same: true }
+        : { are_same: false, old: current_SC_validation.executed ? current_SC_validation.parsed : current_SC_validation.received }),
+    }
+    
+    // @ts-expect-error - If opts.verbose is false there's no need to return anything
+    if (!must_update) return opts?.verbose ? verbose_info : undefined
+    
+    localStorage.setItem(config_SK, JSON.stringify(new_SC))
+    
+    // @ts-expect-error - If opts.verbose is false there's no need to return anything
+    return opts?.verbose ? verbose_info : undefined
   }
 
   // #endregion

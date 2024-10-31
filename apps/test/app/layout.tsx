@@ -34,6 +34,10 @@ export default function RootLayout({
                 system: 'system',
                 custom: ['custom', 'prova']
               }
+            },
+            theme: {
+              strategy: 'mono',
+              key: 'default'
             }
           }}
         >

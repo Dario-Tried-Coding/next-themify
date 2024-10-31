@@ -11,24 +11,34 @@ export type Script_Params = {
 }
 
 export type Storage_Config = Partial<Record<Prop, string>>
-export type Valid_Values = Partial<Record<Prop, Set<string>>>
+export type Available_Values = Partial<Record<Prop, Set<string>>>
 
 export type Warn = (msg: string, ...params: any[]) => void
 export type Validate_Multi_x_Custom_Strat = (obj: Multi_Strat<string[]> | Custom_Strat<string[]>) => void
-export type Validate_Light_Dark_Strat = (obj: Light_Dark_Strat<{ light: string, dark: string, system: string, custom: string[] }>) => void
+export type Validate_Light_Dark_Strat = (obj: Light_Dark_Strat<{ light: string; dark: string; system: string; custom: string[] }>) => void
 
 export type SC_Opts<V extends boolean> = {
   fallback_SC?: Storage_Config
   verbose?: V
 }
+export type SC_Validation_Executed = { executed: true; results: Record<string, [string, boolean]>; parsed: Record<string, any> }
+export type SC_Validation_Not_Executed = { executed: false; received: string | null }
 export type SC_Validation<V extends boolean> = V extends true
   ? {
       SC: Storage_Config
       passed: boolean
-      results: Partial<Record<string, [string, boolean]>>
-    }
+    } & (SC_Validation_Executed | SC_Validation_Not_Executed)
   : {
       SC: Storage_Config
       passed: boolean
     }
-export type Validate_SC = <V extends boolean>(obj: Record<string, any> | undefined | null, opts?: SC_Opts<V>) => SC_Validation<V>
+export type Validate_SC = <V extends boolean>(unsafe_string: string | null, opts?: SC_Opts<V>) => SC_Validation<V>
+export type Get_SC = <V extends boolean>(opts?: SC_Opts<V>) => SC_Validation<V>
+export type Verbose_Set_SC = (
+  | { is_valid: false; received: Storage_Config; available_values: Available_Values }
+  | { is_valid: true; received: Storage_Config }
+) &
+  ({ was_valid: boolean } & ({ are_same: true } | { are_same: false; old: string | Record<string, any> | null })) & {
+    updated: boolean
+  }
+export type Set_SC = <V extends boolean>(SC: Storage_Config, opts?: { verbose?: V; force?: boolean }) => V extends true ? Verbose_Set_SC : void
