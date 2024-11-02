@@ -3,8 +3,10 @@
 /**
  * @typedef {import('./types/index').Prop} Prop
  * @typedef {import('./types/script').Storage_Config} Storage_Config
- * @typedef {import('./types/script').SC_Validation<false>} SC_Validation_Dry
- * @typedef {import('./types/script').SC_Validation<true>} SC_Validation_Verbose
+ * @typedef {import('./types/script').SC_Validation<false>} Dry_SC_Validation
+ * @typedef {import('./types/script').SC_Validation<true>} Verbose_SC_Validation
+ * @typedef {import('./types/script').CM_Validation<false>} Dry_CM_Validation
+ * @typedef {import('./types/script').CM_Validation<true>} Verbose_CM_Validation
  */
 
 /** @param {import('./types/script').Script_Params} params */
@@ -64,6 +66,7 @@ export function script(params) {
 
   const {
     config_SK,
+    mode_SK,
     config,
     constants: { STRATS, MODES },
   } = params
@@ -91,18 +94,18 @@ export function script(params) {
     return available_values
   }
 
-  function construct_default_SC() {
+  function construct_default_values() {
     /** @type {Storage_Config} */
-    const default_SC = {}
+    const default_values = {}
 
     for (const [key, value] of Object.entries(config)) {
       const typed_key = /** @type {Prop} */ (key)
 
-      if (value.strategy === STRATS.mono) default_SC[typed_key] = value.key
-      else default_SC[typed_key] = value.default
+      if (value.strategy === STRATS.mono) default_values[typed_key] = value.key
+      else default_values[typed_key] = value.default
     }
 
-    return default_SC
+    return default_values
   }
 
   // #endregion
@@ -110,7 +113,7 @@ export function script(params) {
   /** All the available values of ONLY the props that Next-Themify must handle (based on config obj). */
   const available_values = construct_available_values()
   /** Default values of ONLY the props that Next-Themify must handle (based on config obj). */
-  const default_SC = construct_default_SC()
+  const default_values = construct_default_values()
 
   // #region CONFIG VALIDATION ------------------------------------------------------------------------------------------
 
@@ -262,7 +265,7 @@ export function script(params) {
      * - The default value from the config obj
      * - The provided fallback value (if provided and valid)
      */
-    const fallback_SC = default_SC // Initially take as fallback the default values from the config obj
+    const fallback_SC = default_values // Initially take as fallback the default values from the config obj
 
     // If opts.fallback_SC is provided, for each prop that Next-Themify must handle use instead the provided fallback value (if provided and valid)
     if (opts?.fallback_SC) {
@@ -275,9 +278,9 @@ export function script(params) {
     }
 
     if (!obj) {
-      /** @type {SC_Validation_Verbose} */
+      /** @type {Verbose_SC_Validation} */
       const verbose_imp_validation = { SC: fallback_SC, passed: false, executed: false, received: unsafe_string }
-      /** @type {SC_Validation_Dry} */
+      /** @type {Dry_SC_Validation} */
       const dry_imp_validation = { SC: fallback_SC, passed: false }
 
       // @ts-expect-error - If opts.verbose is true, validation info must be included
@@ -331,9 +334,9 @@ export function script(params) {
       valid_SC[typed_key] = fallback_SC[typed_key]
     }
 
-    /** @type {SC_Validation_Verbose} */
+    /** @type {Verbose_SC_Validation} */
     const verbose_SC_validation = { SC: valid_SC, passed, executed: true, results, parsed: obj }
-    /** @type {SC_Validation_Dry} */
+    /** @type {Dry_SC_Validation} */
     const dry_SC_validation = { SC: valid_SC, passed }
 
     //@ts-expect-error - If opts.verbose is true, validation info must be included
@@ -355,9 +358,9 @@ export function script(params) {
 
   /**
    * It sets/updates the SC with the provided new values (if ALL the provided obj is valid).
-   * 
+   *
    * If both the new and old SCs are valid, it will execute only if needed (if the two are different).
-   * 
+   *
    * @type {import('./types/script').Set_SC}
    */
   function set_SC(SC, opts) {
@@ -405,14 +408,133 @@ export function script(params) {
         ? { are_same: true }
         : { are_same: false, old: current_SC_validation.executed ? current_SC_validation.parsed : current_SC_validation.received }),
     }
-    
+
     // @ts-expect-error - If opts.verbose is false there's no need to return anything
     if (!must_update) return opts?.verbose ? verbose_info : undefined
-    
+
     localStorage.setItem(config_SK, JSON.stringify(new_SC))
-    
+
     // @ts-expect-error - If opts.verbose is false there's no need to return anything
     return opts?.verbose ? verbose_info : undefined
+  }
+
+  // #endregion
+
+  // #region COLOR MODE (CM) -----------------------------------------------------------------------------------------
+
+  function get_CMPref() {
+    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
+  }
+
+  /**
+   * It executes only if "mode" prop is enabled in the config obj.
+   *
+   * It checks if the provided string is a valid color mode.
+   *
+   * If not valid, it will return the "fallback" value (if provided and valid) or the "default" value.
+   *
+   * @type {import('./types/script').Validate_CM}
+   */
+  function validate_CM(CM, opts) {
+    // If "mode" is not enabled in the config obj, throw a warning and return "undefined"
+    if (!config.mode || !available_values.mode || !default_values.mode) {
+      warn('Func: validate_CM - trying to validate color mode but "mode" prop is missing from the config object.', config)
+
+      /** @type {Verbose_CM_Validation} */
+      const verbose = { passed: false, CM: undefined, received: CM, available_values: [] }
+      /** @type {Dry_CM_Validation} */
+      const dry = { passed: false, CM: undefined }
+
+      // @ts-expect-error - If opts.verbose is true, validation info must be included
+      return opts?.verbose ? verbose : dry
+    }
+
+    // exclude "keys.system" if "opts.resolve" is true
+    const available_modes = opts?.resolve
+      ? new Set(
+          [...available_values.mode].filter(
+            (m) => m !== (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && config.mode.keys.system)
+          )
+        )
+      : available_values.mode
+
+    const is_fallback_valid = typeof opts?.fallback_CM === 'string' && available_modes.has(opts.fallback_CM)
+    if (!is_fallback_valid)
+      warn('Func: validate_CM - the provided "fallback" value is not valid... using "default" value as "fallback"', {
+        provided: opts?.fallback_CM,
+        available_values: available_values.mode,
+        default: default_values.mode,
+      })
+
+    const fallback_CM = is_fallback_valid ? opts.fallback_CM : default_values.mode
+
+    if (!CM) {
+      /** @type {Verbose_CM_Validation} */
+      const verbose = { passed: false, CM: fallback_CM, received: CM, available_values: Array.from(available_values.mode) }
+      /** @type {Dry_CM_Validation} */
+      const dry = { passed: false, CM: fallback_CM }
+
+      // @ts-expect-error - If opts.verbose is true, validation info must be included
+      return opts?.verbose ? verbose : dry
+    }
+
+    const passed = available_values.mode.has(CM)
+
+    if (!passed) {
+      /** @type {Verbose_CM_Validation} */
+      const verbose = { passed: false, CM: fallback_CM, received: CM, available_values: Array.from(available_values.mode) }
+      /** @type {Dry_CM_Validation} */
+      const dry = { passed: false, CM: fallback_CM }
+
+      // @ts-expect-error - If opts.verbose is true, validation info must be included
+      return opts?.verbose ? verbose : dry
+    }
+
+    /** @type {Verbose_CM_Validation} */
+    const verbose = { passed: true, CM, available_values: Array.from(available_values.mode) }
+    /** @type {Dry_CM_Validation} */
+    const dry = { passed: true, CM }
+
+    // @ts-expect-error - If opts.verbose is true, validation info must be included
+    return opts?.verbose ? verbose : dry
+  }
+
+  /**
+   * It decides between the "light" and "dark" color modes based on the system preference.
+   *
+   * It executes only if:
+   * - "mode" prop is enabled in the config obj
+   * - "mode.strategy" is set to "light_dark"
+   * - "mode.enableSystem" is set to true
+   */
+  function resolve_CM() {
+    if (!config.mode || !available_values.mode || !default_values.mode) {
+      warn('Func: resolve_CM - trying to resolve color mode but "mode" prop is missing from the config object.', config)
+      return undefined
+    }
+
+    if (config.mode.strategy !== STRATS.light_dark) {
+      warn('Func: resolve_CM - trying to resolve color mode but "mode" prop is not set to "light_dark" strategy.', config.mode)
+      return undefined
+    }
+
+    if (!config.mode.enableSystem) {
+      warn('Func: resolve_CM - trying to resolve color mode but "mode.enableSystem" is set to false.', config.mode)
+      return undefined
+    }
+
+    const CM_Pref = get_CMPref()
+
+    if (!CM_Pref) return config.mode.fallback
+    return CM_Pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light
+  }
+
+  /** @type {import('./types/script').Get_CM} */
+  function get_CM(opts) {
+    const string = localStorage.getItem(mode_SK)
+    const validation = validate_CM(string, opts)
+    return validation
   }
 
   // #endregion

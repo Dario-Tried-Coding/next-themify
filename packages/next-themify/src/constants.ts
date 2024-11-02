@@ -24,3 +24,4 @@ export type DARK = (typeof MODES)['dark']
 export type SYSTEM = (typeof MODES)['system']
 
 export const CONFIG_SK = 'next-themify' as const
+export const MODE_SK = 'theme' as const

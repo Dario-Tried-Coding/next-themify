@@ -3,6 +3,7 @@ import { MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
   config_SK: string
+  mode_SK: string
   config: Config<STATIC>
   constants: {
     STRATS: typeof STRATS
@@ -42,3 +43,14 @@ export type Verbose_Set_SC = (
     updated: boolean
   }
 export type Set_SC = <V extends boolean>(SC: Storage_Config, opts?: { verbose?: V; force?: boolean }) => V extends true ? Verbose_Set_SC : void
+
+export type CM_Opts<V extends boolean> = {
+  fallback_CM?: string
+  verbose?: V
+  resolve?: boolean
+}
+export type CM_Validation<V extends boolean> = V extends true
+  ? { available_values: string[] } & ({ passed: true; CM: string } | { passed: false; CM: string | undefined; received: string | null })
+  : { passed: true; CM: string } | { passed: false; CM: string | undefined }
+export type Validate_CM = <V extends boolean>(CM: string | null, opts?: CM_Opts<V>) => CM_Validation<V>
+export type Get_CM = <V extends boolean>(opts?: CM_Opts<V>) => CM_Validation<V>
