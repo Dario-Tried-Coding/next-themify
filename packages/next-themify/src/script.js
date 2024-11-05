@@ -87,7 +87,12 @@ export function script(params) {
       const typed_key = /** @type {Prop} */ (key)
 
       if (strat_obj.strategy === 'mono') available_values[typed_key] = new Set([strat_obj.key])
-      else if (strat_obj.strategy === 'light_dark') available_values[typed_key] = new Set(Object.values(strat_obj.keys).flat())
+      else if (strat_obj.strategy === 'light_dark') {
+        const keys = Object.values(strat_obj.keys)
+          .flat()
+          .map((i) => (typeof i === 'string' ? i : i.key))
+        available_values[typed_key] = new Set(Object.values(keys))
+      } else if (strat_obj.strategy === 'custom') available_values[typed_key] = new Set(strat_obj.keys.map((i) => i.key))
       else available_values[typed_key] = new Set(strat_obj.keys)
     }
 
@@ -118,10 +123,10 @@ export function script(params) {
   // #region CONFIG VALIDATION ------------------------------------------------------------------------------------------
 
   function validate_config() {
-    // MULTI & CUSTOM ------------------------------------------------------
+    // MULTI ------------------------------------------------------
 
-    /** @type {import('./types/script').Validate_Multi_x_Custom_Strat} */
-    function validate_multi_x_custom_strat(obj) {
+    /** @type {import('./types/script').Validate_Multi_Strat} */
+    function validate_multi_strat(obj) {
       // Is "keys" provided?
       const is_keys_provided = obj.keys !== undefined
       if (!is_keys_provided) warn('Func: validate_multi_x_custom_strat - "keys" must be provided.', obj)
@@ -145,6 +150,35 @@ export function script(params) {
       // Is "default" one of the provided keys?
       const is_valid = obj.keys.includes(obj.default)
       if (!is_valid) warn('Func: validate_multi_x_custom_strat - "default" key must be one of "keys".', obj)
+    }
+
+    // CUSTOM --------------------------------------------------------------
+
+    /** @type {import('./types/script').Validate_Custom_Strat} */
+    function validate_custom_strat(obj) {
+      // Is "keys" provided?
+      const is_keys_provided = obj.keys !== undefined
+      if (!is_keys_provided) warn('Func: validate_multi_x_custom_strat - "keys" must be provided.', obj)
+
+      // Is "keys" not empty?
+      const is_empty = obj.keys.length === 0
+      if (is_empty) warn('Func: validate_multi_x_custom_strat - "keys" cannot be empty.', obj)
+
+      // Are all keys strings?
+      const are_all_keys_strings = obj.keys.every((k) => typeof k.key === 'string')
+      if (!are_all_keys_strings) warn('Func: validate_multi_x_custom_strat - "keys" must contain only strings.', obj.keys)
+
+      // Is "default" provided?
+      const is_default_provided = obj.default !== undefined
+      if (!is_default_provided) warn('Func: validate_multi_x_custom_strat - "default" key must be provided.', obj)
+
+      // Is "default" a string?
+      const is_default_string = typeof obj.default === 'string'
+      if (!is_default_string) warn('Func: validate_multi_x_custom_strat - "default" key must be a string.', obj)
+
+      // Is "default" one of the provided keys?
+      const is_valid = obj.keys.map((k) => k.key).includes(obj.default)
+      if (!is_valid) warn('Func: validate_custom_strat - "default" key must be one of "keys".', obj)
     }
 
     // LIGHT_DARK ----------------------------------------------------------
@@ -229,7 +263,8 @@ export function script(params) {
 
     for (const strat_obj of Object.values(config)) {
       if (strat_obj.strategy === STRATS.mono) continue
-      else if (strat_obj.strategy === STRATS.custom || strat_obj.strategy === STRATS.multi) validate_multi_x_custom_strat(strat_obj)
+      else if (strat_obj.strategy === STRATS.multi) validate_multi_strat(strat_obj)
+      else if (strat_obj.strategy === STRATS.custom) validate_custom_strat(strat_obj)
       else if (strat_obj.strategy === STRATS.light_dark) validate_light_dark_mode(strat_obj)
     }
   }
