@@ -14,8 +14,8 @@ export default function RootLayout({
 }>) {
   const keys = {
     mode: {
-      custom: ['custom', 'prova']
-    }
+      custom: ['custom', 'prova'],
+    },
   } as const satisfies Keys
 
   return (
@@ -32,13 +32,16 @@ export default function RootLayout({
                 light: 'light',
                 dark: 'dark',
                 system: 'system',
-                custom: ['custom', 'prova']
-              }
+                custom: [
+                  { key: 'custom', colorScheme: 'light' },
+                  { key: 'prova', colorScheme: 'dark' },
+                ],
+              },
             },
             theme: {
               strategy: 'mono',
-              key: 'default'
-            }
+              key: 'default',
+            },
           }}
         >
           {children}

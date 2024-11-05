@@ -1,7 +1,14 @@
 import { CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
-import { AtLeastOne, IsLiteralArray } from './utils'
+import { AtLeastOne, IsLiteralArray, ToObjects } from './utils'
 
 // #region Keys ------------------------------------------------------------------------------------------
+type Color_Scheme = 'light' | 'dark'
+
+type Custom_Mode_Key = {
+  key: string
+  colorScheme: Color_Scheme
+}
+
 type Mono_Key = string
 type Custom_Keys = string[]
 type Multi_Keys = string[]
@@ -28,7 +35,13 @@ export type Prop = keyof NonNullable<Keys_Config>
 // #region Strats ----------------------------------------------------------------------------------------
 export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key } // Static -> Mono_Strat<string>; Default -> Mono_Strat<DEFAULT>; Dynamic -> Mono_Strat<'string'>
 export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] } // Static -> Multi_Strat<string[]>; Dynamic -> Multi_Strat<['string1', 'string2']>
-export type Custom_Strat<Keys extends string[]> = { strategy: CUSTOM; keys: Keys; default: Keys[number] } // Static -> Custom_Strat<string[]>; Dynamic -> Custom_Strat<['string1', 'string2']>
+
+// Static -> Custom_Strat<string[]>; Dynamic -> Custom_Strat<['string1', 'string2']>
+export type Custom_Strat<Keys extends string[]> = {
+  strategy: CUSTOM
+  keys: ToObjects<Keys, Custom_Mode_Key>
+  default: Keys[number]
+}
 
 // Static -> Light_Dark_Strat<{light: string, dark: string, system: string, custom: string[]}>;
 // Default -> Light_Dark_Strat;
@@ -53,8 +66,8 @@ export type Light_Dark_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = 
         system: Overrides['system'] extends string ? Overrides['system'] : SYSTEM
       } & (Overrides['custom'] extends string[]
         ? IsLiteralArray<Overrides['custom']> extends true
-          ? { custom: Overrides['custom'] }
-          : { custom?: string[] }
+          ? { custom: ToObjects<Overrides['custom'], Custom_Mode_Key> }
+          : { custom?: Custom_Mode_Key[] }
         : {})
     }
   | {
@@ -68,8 +81,8 @@ export type Light_Dark_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = 
         dark: Overrides['dark'] extends string ? Overrides['dark'] : DARK
       } & (Overrides['custom'] extends string[]
         ? IsLiteralArray<Overrides['custom']> extends true
-          ? { custom: Overrides['custom'] }
-          : { custom?: string[] }
+          ? { custom: ToObjects<Overrides['custom'], Custom_Mode_Key> }
+          : { custom?: Custom_Mode_Key[] }
         : {})
     }
 )
