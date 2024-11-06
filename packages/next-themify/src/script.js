@@ -457,17 +457,11 @@ export function script(params) {
 
   // #region COLOR MODE (CM) -----------------------------------------------------------------------------------------
 
-  function get_CMPref() {
-    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
-  }
-
   /**
-   * It executes only if "mode" prop is enabled in the config obj.
-   *
    * It checks if the provided string is a valid color mode.
-   *
-   * If not valid, it will return the "fallback" value (if provided and valid) or the "default" value.
+   * 
+   * - It executes only if "mode" prop is enabled in the config obj.
+   * - If not valid, it will return the "fallback" value (if provided and valid) or the "default" value.
    *
    * @type {import('./types/script').Validate_CM}
    */
@@ -494,6 +488,7 @@ export function script(params) {
         )
       : available_values.mode
 
+    // If "fallback" is provided, check if it's a valid value
     const is_fallback_valid = typeof opts?.fallback_CM === 'string' && available_modes.has(opts.fallback_CM)
     if (!is_fallback_valid)
       warn('Func: validate_CM - the provided "fallback" value is not valid... using "default" value as "fallback"', {
@@ -504,6 +499,7 @@ export function script(params) {
 
     const fallback_CM = is_fallback_valid ? opts.fallback_CM : default_values.mode
 
+    // If no CM is provided, return the fallback (provided or default) value
     if (!CM) {
       /** @type {Verbose_CM_Validation} */
       const verbose = { passed: false, CM: fallback_CM, received: CM, available_values: Array.from(available_values.mode) }
@@ -536,7 +532,9 @@ export function script(params) {
   }
 
   /**
-   * It decides between the "light" and "dark" color modes based on the system preference.
+   * It decides between the "light" and "dark" color scheme based on the system preference.
+   * 
+   * If the browser doesn't support the "prefers-color-scheme" media query, it will return the fallback value.
    *
    * It executes only if:
    * - "mode" prop is enabled in the config obj
@@ -545,31 +543,49 @@ export function script(params) {
    */
   function resolve_CM() {
     if (!config.mode || !available_values.mode || !default_values.mode) {
-      warn('Func: resolve_CM - trying to resolve color mode but "mode" prop is missing from the config object.', config)
+      warn('Func: resolve_CM - trying to resolve color scheme but "mode" prop is missing from the config object.', config)
       return undefined
     }
 
     if (config.mode.strategy !== STRATS.light_dark) {
-      warn('Func: resolve_CM - trying to resolve color mode but "mode" prop is not set to "light_dark" strategy.', config.mode)
+      warn('Func: resolve_CM - trying to resolve color scheme but "mode" prop is not set to "light_dark" strategy.', config.mode)
       return undefined
     }
 
     if (!config.mode.enableSystem) {
-      warn('Func: resolve_CM - trying to resolve color mode but "mode.enableSystem" is set to false.', config.mode)
+      warn('Func: resolve_CM - trying to resolve color scheme but "mode.enableSystem" is set to false.', config.mode)
       return undefined
     }
 
-    const CM_Pref = get_CMPref()
+    const CS_Pref = get_CSPref()
 
-    if (!CM_Pref) return config.mode.fallback
-    return CM_Pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light
+    if (!CS_Pref) return config.mode.fallback
+    return CS_Pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light
   }
 
-  /** @type {import('./types/script').Get_CM} */
-  function get_CM(opts) {
+  // #endregion
+
+  // #region STORAGE MODE (SM) -----------------------------------------------------------------------------------------
+
+  /** 
+   * It retrieves and validates the current SM from the local storage.
+   * 
+   * - If no SM (or invalid): it returns the fallback value (if provided and valid) or the default value.
+   * @type {import('./types/script').Get_SM} */
+  function get_SM(opts) {
     const string = localStorage.getItem(mode_SK)
     const validation = validate_CM(string, opts)
     return validation
+  }
+
+  // #endregion
+
+  // #region COLOR SCHEME (SC) -----------------------------------------------------------------------------------------
+
+  /** @type {import('./types/script').Get_CSPref} */
+  function get_CSPref() {
+    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
   }
 
   // #endregion

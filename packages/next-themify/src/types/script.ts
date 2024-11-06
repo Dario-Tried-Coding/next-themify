@@ -1,4 +1,4 @@
-import { Config, Custom_Strat, Light_Dark_Strat, Multi_Strat, Prop } from '.'
+import { Color_Scheme, Config, Custom_Strat, Light_Dark_Strat, Multi_Strat, Prop } from '.'
 import { MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
@@ -54,4 +54,8 @@ export type CM_Validation<V extends boolean> = V extends true
   ? { available_values: string[] } & ({ passed: true; CM: string } | { passed: false; CM: string | undefined; received: string | null })
   : { passed: true; CM: string } | { passed: false; CM: string | undefined }
 export type Validate_CM = <V extends boolean>(CM: string | null, opts?: CM_Opts<V>) => CM_Validation<V>
-export type Get_CM = <V extends boolean>(opts?: CM_Opts<V>) => CM_Validation<V>
+
+export type Get_SM = <V extends boolean>(opts?: CM_Opts<V>) => CM_Validation<V>
+
+export type CS_Validation = { passed: true, CS: Color_Scheme} | {passed: false, CS: Color_Scheme, received: string | null}
+export type Get_CSPref = () => Color_Scheme | undefined
