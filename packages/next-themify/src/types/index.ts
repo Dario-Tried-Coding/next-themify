@@ -1,4 +1,4 @@
-import { CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
+import { Color_Scheme, CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
 import { AtLeastOne, IsLiteralArray, ToObjects } from './utils'
 
 // #region Keys ------------------------------------------------------------------------------------------
@@ -26,8 +26,6 @@ export type Keys_Config = AtLeastOne<Keys> | null
 export type Prop = keyof NonNullable<Keys_Config>
 
 // #region Strats ----------------------------------------------------------------------------------------
-export type Color_Scheme = 'light' | 'dark'
-
 type Custom_Mode = {
   key: string
   colorScheme: Color_Scheme

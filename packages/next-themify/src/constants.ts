@@ -23,5 +23,8 @@ export type LIGHT = (typeof MODES)['light']
 export type DARK = (typeof MODES)['dark']
 export type SYSTEM = (typeof MODES)['system']
 
+export const COLOR_SCHEMES = ['light', 'dark'] as const
+export type Color_Scheme = typeof COLOR_SCHEMES[number]
+
 export const CONFIG_SK = 'next-themify' as const
 export const MODE_SK = 'theme' as const
