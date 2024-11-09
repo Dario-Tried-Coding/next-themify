@@ -1,5 +1,5 @@
 import { Config, Custom_Strat, Light_Dark_Strat, Multi_Strat, Prop } from '.'
-import { Color_Scheme, MODES, STATIC, STRATS } from '../constants'
+import { Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
   config_SK: string
@@ -11,43 +11,31 @@ export type Script_Params = {
   }
 }
 
-export type Storage_Config = Partial<Record<Prop, string>>
+export type SC = Partial<Record<Prop, string>>
 export type Available_Values = Partial<Record<Prop, Set<string>>>
 
-export type SC_Opts<V extends boolean> = {
-  fallback_SC?: Storage_Config
-  verbose?: V
-}
-export type SC_Validation<V extends boolean> = {
-  SC: Storage_Config
+export type SC_Validation = {
+  SC: SC
   valid: boolean
   results: Record<string, [string, boolean]>
-} & (V extends true
-  ? {
-      performed_on: {
-        string: string | undefined | null
-        obj: object | undefined
-      }
-    }
-  : {})
-export type Set_SC_Info<V extends boolean> = {
+  performed_on: {
+    string: string | undefined | null
+    obj: object | undefined
+  }
+  available_values: Available_Values
+}
+export type Set_SC_Info = {
   must_update: boolean
-  retrieved_SC: SC_Validation<V>
-  provided_SC: SC_Validation<V>
+  retrieved_SC: SC_Validation
+  provided_SC: SC_Validation
   is_same: boolean
 }
 
-export type CM_Opts<V extends boolean> = {
-  fallback_CM?: string
-  verbose?: V
-  resolve?: boolean
+export type CM_Validation = {
+  passed: boolean
+  CM: string | undefined | null
+  performed_on: string | undefined | null
+  available_values: NonNullable<Available_Values['mode']>
 }
-export type CM_Validation<V extends boolean> = V extends true
-  ? { available_values: string[] } & ({ passed: true; CM: string } | { passed: false; CM: string | undefined; received: string | null })
-  : { passed: true; CM: string } | { passed: false; CM: string | undefined }
-export type Validate_CM = <V extends boolean>(CM: string | null, opts?: CM_Opts<V>) => CM_Validation<V>
 
-export type Get_SM = <V extends boolean>(opts?: CM_Opts<V>) => CM_Validation<V>
-
-export type CS_Validation = { passed: true; CS: Color_Scheme } | { passed: false; CS: Color_Scheme; received: string | null }
-export type Get_CSPref = () => Color_Scheme | undefined
+export type CS_Validation = { passed: false; CS: CS; performed_on: string | undefined | null }
