@@ -1,4 +1,4 @@
-import { Config, Custom_Strat, Light_Dark_Strat, Multi_Strat, Prop } from '.'
+import { Config, Prop } from '.'
 import { Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
@@ -27,12 +27,12 @@ export type SC_Validation = {
 export type Set_SC_Info = {
   must_update: boolean
   retrieved_SC: SC_Validation
-  provided_SC: SC_Validation
+  provided_SC: SC
   is_same: boolean
 }
 
 export type SM_Validation = {
-  passed: boolean
+  valid: boolean
   SM: string
   performed_on: string | undefined | null
   available_values: NonNullable<Available_Values['mode']>
@@ -40,8 +40,23 @@ export type SM_Validation = {
 export type Set_SM_Info = {
   must_update: boolean
   retrieved_SM: SM_Validation
-  provided_SM: SM_Validation
+  provided_SM: string
   is_same: boolean
 }
 
-export type CS_Validation = { passed: boolean; CS: CS; performed_on: string | undefined | null, avalable_values: Set<CS> }
+export type CS_Validation = { valid: boolean; CS: CS | ''; performed_on: string | undefined | null, avalable_values: Set<CS> }
+
+export type TA_Validation = {
+  valid: boolean
+  value: string
+  performed_on: [Prop, string | undefined | null]
+  available_values: Set<string>
+}
+export type Set_TAs_Info = {
+  [key in keyof SC]: {
+    must_update: boolean
+    retrieved_TA: TA_Validation
+    provided_value: string
+    is_same: boolean
+  }
+}

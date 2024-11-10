@@ -1,6 +1,15 @@
-import { Custom_Strat, Light_Dark_Strat, Mono_Strat, Multi_Strat, Prop } from './types/index'
-import { Available_Values, SM_Validation, SC_Validation, Script_Params, Set_SC_Info, SC, Set_SM_Info, CS_Validation } from './types/script'
-import { Color_Scheme as CS } from './constants'
+import { Prop } from './types/index'
+import {
+  Available_Values,
+  SC,
+  SC_Validation,
+  Script_Params,
+  Set_SC_Info,
+  Set_SM_Info,
+  Set_TAs_Info,
+  SM_Validation,
+  TA_Validation,
+} from './types/script'
 
 export function script(params: Script_Params) {
   const html = document.documentElement
@@ -124,14 +133,15 @@ export function script(params: Script_Params) {
 
     const parsed_obj = parse_JsonToObj(unsafe_string)
     if (!parsed_obj) return { SC: fallback_SC, valid: false, results: {}, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
-
+    
+    const edited_obj = {...parsed_obj}
     const results: SC_Validation['results'] = {}
     let valid = true
 
-    for (const [unsafe_prop, unsafe_value] of Object.entries(parsed_obj)) {
+    for (const [unsafe_prop, unsafe_value] of Object.entries(edited_obj)) {
       if (!props_to_handle.includes(unsafe_prop as Prop)) {
         results[unsafe_prop] = [unsafe_value, false]
-        delete parsed_obj[unsafe_prop]
+        delete edited_obj[unsafe_prop]
         valid = false
         continue
       }
@@ -140,7 +150,7 @@ export function script(params: Script_Params) {
       const is_available_value = available_values[prop_to_handle]?.has(unsafe_value)
       if (!is_available_value) {
         results[prop_to_handle] = [unsafe_value, false]
-        parsed_obj[prop_to_handle] = fallback_SC[prop_to_handle]
+        edited_obj[prop_to_handle] = fallback_SC[prop_to_handle]
         valid = false
         continue
       }
@@ -150,11 +160,11 @@ export function script(params: Script_Params) {
     }
 
     for (const prop of props_to_handle) {
-      if (prop in parsed_obj) continue
-      parsed_obj[prop] = fallback_SC[prop]
+      if (prop in edited_obj) continue
+      edited_obj[prop] = fallback_SC[prop]
     }
 
-    const SC_to_return = parsed_obj as SC
+    const SC_to_return = edited_obj as SC
     return { SC: SC_to_return, valid, results, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
   }
 
@@ -166,17 +176,12 @@ export function script(params: Script_Params) {
 
   const set_SC = (SC: SC, opts?: { force?: boolean }): Set_SC_Info => {
     const retrieved_SC = get_SC()
-    const provided_SC = validate_SC(JSON.stringify(SC), { fallback_SC: retrieved_SC.SC })
 
-    const is_same = isSameObj(retrieved_SC.SC, provided_SC.SC)
-    const must_update = opts?.force || !retrieved_SC.valid || (retrieved_SC.valid && !is_same)
+    const is_same = isSameObj(retrieved_SC.SC, SC)
+    if (retrieved_SC.valid && is_same && !opts?.force) return { must_update: false, retrieved_SC, provided_SC: SC, is_same }
 
-    const return_info: Set_SC_Info = { must_update, retrieved_SC, provided_SC, is_same }
-
-    if (!must_update) return return_info
-
-    localStorage.setItem(config_SK, JSON.stringify(provided_SC.SC))
-    return return_info
+    localStorage.setItem(config_SK, JSON.stringify(SC))
+    return { must_update: true, retrieved_SC, provided_SC: SC, is_same }
   }
 
   // #endregion
@@ -186,18 +191,18 @@ export function script(params: Script_Params) {
   const validate_SM = (SM: string | undefined | null, opts?: { fallback_SM?: string }): SM_Validation => {
     if (!config.mode || !available_values.mode || !default_values.mode) {
       warn('Func: validate_CM - trying to validate color mode but "mode" prop is missing from the config object.', config)
-      return { passed: false, SM: '', performed_on: SM, available_values: new Set([]) }
+      return { valid: false, SM: '', performed_on: SM, available_values: new Set([]) }
     }
 
     const fallback_SM = opts?.fallback_SM ?? default_values.mode
     const available_SMs = available_values.mode
 
-    if (!SM) return {passed: false, SM: '', performed_on: SM, available_values: available_SMs}
+    if (!SM) return { valid: false, SM: '', performed_on: SM, available_values: available_SMs }
 
     const is_SM_valid = available_SMs.has(SM)
-    if (!is_SM_valid) return { passed: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
+    if (!is_SM_valid) return { valid: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
 
-    return { passed: true, SM, performed_on: SM, available_values: available_SMs }
+    return { valid: true, SM, performed_on: SM, available_values: available_SMs }
   }
 
   const resolve_SM = () => {
@@ -229,17 +234,13 @@ export function script(params: Script_Params) {
 
   const set_SM = (SM: string, opts?: { force?: boolean }): Set_SM_Info => {
     const retrieved_SM = get_SM()
-    const provided_SM = validate_SM(SM, { fallback_SM: retrieved_SM.SM })
 
-    const is_same = retrieved_SM.SM === provided_SM.SM
-    const must_update = opts?.force || !retrieved_SM.passed || (retrieved_SM.passed && !is_same)
+    const is_same = retrieved_SM.SM === SM
 
-    const info: Set_SM_Info = { must_update, retrieved_SM, provided_SM, is_same}
+    if (retrieved_SM.valid && is_same && !opts?.force) return {must_update: false, retrieved_SM, provided_SM: SM, is_same}
 
-    if (!must_update) return info
-
-    localStorage.setItem(mode_SK, provided_SM.SM)
-    return info
+    localStorage.setItem(mode_SK, SM)
+    return { must_update: true, retrieved_SM, provided_SM: SM, is_same }
   }
 
   // #endregion
@@ -247,15 +248,64 @@ export function script(params: Script_Params) {
   // #region COLOR SCHEME (SC) -----------------------------------------------------------------------------------------
 
   const get_CSPref = () => {
+    if (!config.mode) {
+      warn('Func: get_CSPref - trying to get color scheme preference but "mode" prop is missing from the config object.', config)
+      return undefined
+    }
+
     if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
   }
 
-  const validate_CS = (CS: string | undefined | null, opts?: {fallback_CS?: CS}): CS_Validation => {
-    const asp = 'aspetta'
+  // #endregion
+
+  // #region THEME ATTRIBUTES (TA) -----------------------------------------------------------------------------------------
+  const validate_TA = (TA: [Prop, string | undefined | null], opts?: { fallback_value?: string }): TA_Validation => {
+    const [prop, value] = TA
+
+    if (!default_values[prop] || !available_values[prop]) {
+      warn("Func: validate_TA - trying to validate a theme attribute that's not enabled in the config object.", { theme_attribute: prop, config })
+      return { valid: false, value: '', performed_on: TA, available_values: new Set([]) }
+    }
+
+    const fallback_value = opts?.fallback_value ?? default_values[prop]
+
+    if (!value) return { valid: false, value: fallback_value, performed_on: TA, available_values: available_values[prop] }
+
+    const is_valid_value = available_values[prop].has(value)
+    if (!is_valid_value) return { valid: false, value: fallback_value, performed_on: TA, available_values: available_values[prop] }
+
+    return { valid: true, value, performed_on: TA, available_values: available_values[prop] }
+  }
+
+  const get_TA = (prop: Prop, opts?: { fallback_value?: string }): TA_Validation => {
+    const name = `data-${prop}`
+    const retrieved_TA = html.getAttribute(name)
+    return validate_TA([prop, retrieved_TA], { fallback_value: opts?.fallback_value })
+  }
+
+  const set_TAs = (SC: SC, opts?: { force?: boolean }): Set_TAs_Info => {
+    const info: Set_TAs_Info = {}
+
+    for (const [prop, value] of Object.entries(SC)) {
+      const typed_prop = prop as keyof typeof SC
+      const TA_name = `data-${typed_prop}` as const
+
+      const retrieved_TA = get_TA(typed_prop)
+
+      const is_same = retrieved_TA.value === value
+
+      if (retrieved_TA.valid && retrieved_TA.value === value && !opts?.force) {
+        info[typed_prop] = { must_update: false, retrieved_TA, provided_value: value, is_same }
+        continue
+      }
+
+      html.setAttribute(TA_name, value)
+      info[typed_prop] = { must_update: true, retrieved_TA, provided_value: value, is_same }
+    }
+
+    return info
   }
 
   // #endregion
-
-  console.log(get_SM())
 }
