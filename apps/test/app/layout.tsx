@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   const keys = {
     mode: {
-      custom: ['custom', 'prova'],
+      custom: ['prova1', 'prova2'],
     },
   } as const satisfies Keys
 
@@ -25,18 +25,16 @@ export default function RootLayout({
           config={{
             mode: {
               strategy: 'light_dark',
-              enableSystem: true,
-              default: 'system',
-              fallback: 'dark',
+              enableSystem: false,
               keys: {
                 light: 'light',
                 dark: 'dark',
-                system: 'system',
                 custom: [
-                  { key: 'custom', colorScheme: 'light' },
-                  { key: 'prova', colorScheme: 'dark' },
+                  { key: 'prova1', colorScheme: 'dark' },
+                  { key: 'prova2', colorScheme: 'light' },
                 ],
               },
+              default: 'light',
             },
             theme: {
               strategy: 'mono',

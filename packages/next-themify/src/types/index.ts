@@ -118,3 +118,5 @@ export type Config<K extends Keys_Config | STATIC> = K extends STATIC
     : AtLeastOne<{
         [P in keyof Keys]?: P extends 'mode' ? Mode_Prop<DEFAULT> | Mode_Prop<{}> : Generic_Prop<DEFAULT>
       }>
+
+const test: Config<{mode: ['prova1', 'prova2']}> = {mode: {strategy: 'custom', keys: [{key: 'prova1', colorScheme: 'light'}, {key: 'prova2', colorScheme: 'dark'}], default: 'prova2'}}

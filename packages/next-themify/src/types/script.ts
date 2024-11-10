@@ -31,11 +31,17 @@ export type Set_SC_Info = {
   is_same: boolean
 }
 
-export type CM_Validation = {
+export type SM_Validation = {
   passed: boolean
-  CM: string | undefined | null
+  SM: string
   performed_on: string | undefined | null
   available_values: NonNullable<Available_Values['mode']>
 }
+export type Set_SM_Info = {
+  must_update: boolean
+  retrieved_SM: SM_Validation
+  provided_SM: SM_Validation
+  is_same: boolean
+}
 
-export type CS_Validation = { passed: false; CS: CS; performed_on: string | undefined | null }
+export type CS_Validation = { passed: boolean; CS: CS; performed_on: string | undefined | null, avalable_values: Set<CS> }
