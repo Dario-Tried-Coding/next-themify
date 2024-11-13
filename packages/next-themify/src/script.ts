@@ -1,9 +1,12 @@
-import { Prop } from './types/index'
+import { Color_Scheme as CS } from './constants'
+import { Custom_Mode_Strat, Prop } from './types/index'
 import {
   Available_Values,
+  CS_Validation,
   SC,
   SC_Validation,
   Script_Params,
+  Set_CS_Info,
   Set_SC_Info,
   Set_SM_Info,
   Set_TAs_Info,
@@ -18,7 +21,7 @@ export function script(params: Script_Params) {
     config_SK,
     mode_SK,
     config,
-    constants: { STRATS, MODES },
+    constants: { STRATS, MODES, COLOR_SCHEMES },
   } = params
 
   let init_library = true
@@ -133,8 +136,8 @@ export function script(params: Script_Params) {
 
     const parsed_obj = parse_JsonToObj(unsafe_string)
     if (!parsed_obj) return { SC: fallback_SC, valid: false, results: {}, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
-    
-    const edited_obj = {...parsed_obj}
+
+    const edited_obj = { ...parsed_obj }
     const results: SC_Validation['results'] = {}
     let valid = true
 
@@ -162,6 +165,7 @@ export function script(params: Script_Params) {
     for (const prop of props_to_handle) {
       if (prop in edited_obj) continue
       edited_obj[prop] = fallback_SC[prop]
+      valid = false
     }
 
     const SC_to_return = edited_obj as SC
@@ -197,7 +201,7 @@ export function script(params: Script_Params) {
     const fallback_SM = opts?.fallback_SM ?? default_values.mode
     const available_SMs = available_values.mode
 
-    if (!SM) return { valid: false, SM: '', performed_on: SM, available_values: available_SMs }
+    if (!SM) return { valid: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
 
     const is_SM_valid = available_SMs.has(SM)
     if (!is_SM_valid) return { valid: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
@@ -228,16 +232,22 @@ export function script(params: Script_Params) {
   }
 
   const get_SM = (): SM_Validation => {
+    if (!config.mode)
+      warn(
+        'Func: get_SM - trying to retrieve and validate "color mode" from local storage but "mode" prop is missing from the config object.',
+        config
+      )
     const unsafe_string = localStorage.getItem(mode_SK)
     return validate_SM(unsafe_string)
   }
 
   const set_SM = (SM: string, opts?: { force?: boolean }): Set_SM_Info => {
+    if (!config.mode) warn('Func: set_SM - trying to store "color mode" in local storage but "mode" prop is missing from the config object.', config)
     const retrieved_SM = get_SM()
 
     const is_same = retrieved_SM.SM === SM
 
-    if (retrieved_SM.valid && is_same && !opts?.force) return {must_update: false, retrieved_SM, provided_SM: SM, is_same}
+    if (retrieved_SM.valid && is_same && !opts?.force) return { must_update: false, retrieved_SM, provided_SM: SM, is_same }
 
     localStorage.setItem(mode_SK, SM)
     return { must_update: true, retrieved_SM, provided_SM: SM, is_same }
@@ -255,6 +265,105 @@ export function script(params: Script_Params) {
 
     if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
+  }
+
+  const construct_CSs = () => {
+    if (!config.mode) {
+      warn('Func: construct_CSs - trying to construct color schemes but "mode" prop is missing from the config object.', config)
+      return {}
+    }
+
+    const CSs: Record<string, CS> = {}
+    if (config.mode.strategy === STRATS.mono) CSs[config.mode.key] = config.mode.colorScheme
+    else if (config.mode.strategy === STRATS.custom) config.mode.keys.forEach((i) => (CSs[i.key] = i.colorScheme))
+    else
+      Object.entries(config.mode.keys).forEach(([key, value]) => {
+        if (typeof value === 'string') CSs[key] = value as CS
+        else value.forEach((i) => (CSs[i.key] = i.colorScheme))
+      })
+
+    return CSs
+  }
+
+  const validate_CS = (CS: string | undefined | null, opts?: { fallback_CS?: CS }): CS_Validation => {
+    if (!config.mode) {
+      warn('Func: validate_CS - trying to validate color scheme but "mode" prop is missing from the config object.', config)
+      return { valid: false, CS: '', performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
+    }
+
+    let fallback_CS: CS = COLOR_SCHEMES[0]
+
+    if (config.mode.strategy === STRATS.mono) fallback_CS = config.mode.colorScheme
+    else if (config.mode.strategy === STRATS.custom)
+      fallback_CS = config.mode.keys.find((i) => i.key === (config as Custom_Mode_Strat<string[]>).default)?.colorScheme as CS
+    else if (config.mode.strategy === STRATS.light_dark) {
+      if (config.mode.default === config.mode.keys.light) fallback_CS = COLOR_SCHEMES[0]
+      if (config.mode.default === config.mode.keys.dark) fallback_CS = COLOR_SCHEMES[1]
+      if (config.mode.enableSystem && config.mode.default === config.mode.keys.system) {
+        let config_fallback_CS: CS = COLOR_SCHEMES[0]
+
+        if (config.mode.fallback === config.mode.keys.light) config_fallback_CS = COLOR_SCHEMES[0]
+        if (config.mode.fallback === config.mode.keys.dark) config_fallback_CS = COLOR_SCHEMES[1]
+
+        const is_custom_fallback = config.mode.keys.custom?.some(
+          (i) => i.key === (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && config.mode.fallback)
+        )
+        if (is_custom_fallback)
+          config_fallback_CS = config.mode.keys.custom?.find(
+            (i) => i.key === (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && config.mode.fallback)
+          )?.colorScheme as CS
+
+        fallback_CS = config_fallback_CS
+      }
+    }
+
+    if (!CS) return { valid: false, CS: fallback_CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
+
+    const is_valid_CS = COLOR_SCHEMES.includes(CS as CS)
+    if (!is_valid_CS) return { valid: false, CS: fallback_CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
+
+    return { valid: true, CS: CS as CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
+  }
+
+  const get_CS = (opts?: { fallback_CS?: CS }): CS_Validation => {
+    if (!config.mode) warn('Func: get_CS - trying to get color scheme but "mode" prop is missing from the config object.', config)
+
+    const retrieved_CS = html.style.colorScheme
+    return validate_CS(retrieved_CS, { fallback_CS: opts?.fallback_CS })
+  }
+
+  const set_CS = (CS: CS, opts?: { force?: boolean }): Set_CS_Info => {
+    if (!config.mode)
+      warn('Func: set_CS - trying to set "color scheme" style attribute on html element but "mode" prop is missing from the config object.', config)
+
+    const retrieved_CS = get_CS()
+
+    const is_same = retrieved_CS.CS === CS
+    if (retrieved_CS.valid && is_same && !opts?.force) return { must_update: false, retrieved_CS, provided_CS: CS, is_same }
+
+    html.style.colorScheme = CS
+    return { must_update: true, retrieved_CS, provided_CS: CS, is_same }
+  }
+
+  const resolve_CS = (SM: string) => {
+    if (!config.mode) warn('Func: resolve_CS - trying to resolve color scheme but "mode" prop is missing from the config object.', config)
+
+    if (!available_values.mode?.has(SM))
+      warn('Func: resolve_CS - trying to resolve color scheme but the provided "color mode" is not valid.', { SM, config })
+
+    const CSs = construct_CSs()
+
+    if (config.mode?.strategy === STRATS.mono && SM === config.mode.key) return config.mode.colorScheme
+    else if (config.mode?.strategy === STRATS.custom && config.mode.keys.find((i) => i.key === SM))
+      return config.mode.keys.find((i) => i.key === SM)?.colorScheme as CS
+    else if (config.mode?.strategy === STRATS.light_dark) {
+      if (SM === config.mode.keys.light) return COLOR_SCHEMES[0]
+      else if (SM === config.mode.keys.dark) return COLOR_SCHEMES[1]
+      else if (config.mode.enableSystem && SM === config.mode.keys.system) {
+        const fallback_CS = CSs[config.mode.fallback] as CS
+        return get_CSPref() ?? fallback_CS
+      } else return COLOR_SCHEMES[0]
+    } else return COLOR_SCHEMES[0]
   }
 
   // #endregion
@@ -306,6 +415,43 @@ export function script(params: Script_Params) {
 
     return info
   }
+
+  // #endregion
+
+  // #region CLASS NAME (CN) -------------------------------------------------------------------------------------------
+
+  const toggle_CN = (CN: CS) => {
+    html.classList.toggle(CN, CN === 'dark')
+    html.classList.toggle(CN, CN === 'light')
+  }
+
+  // #endregion
+
+  // #region INITIALIZATION --------------------------------------------------------------------------------------------
+
+  const apply_SC = (SC: SC, opts?: { store?: boolean }) => {
+    set_TAs(SC)
+    if (opts?.store) set_SC(SC)
+  }
+
+  const apply_SM = (SM: string, opts?: { store?: boolean }) => {
+    const resolved_CS = resolve_CS(SM)
+    set_CS(resolved_CS)
+    toggle_CN(resolved_CS)
+    if (opts?.store) set_SM(SM)
+  }
+
+  const init = () => {
+    const current_SC = get_SC()
+    apply_SC(current_SC.SC, { store: !current_SC.valid })
+
+    if (config.mode) {
+      const current_SM = get_SM()
+      apply_SM(current_SM.SM, { store: !current_SM.valid })
+    }
+  }
+
+  init()
 
   // #endregion
 }

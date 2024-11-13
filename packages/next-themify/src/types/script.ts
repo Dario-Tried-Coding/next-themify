@@ -1,5 +1,5 @@
 import { Config, Prop } from '.'
-import { Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
+import { COLOR_SCHEMES, Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
 
 export type Script_Params = {
   config_SK: string
@@ -8,6 +8,7 @@ export type Script_Params = {
   constants: {
     STRATS: typeof STRATS
     MODES: typeof MODES
+    COLOR_SCHEMES: typeof COLOR_SCHEMES
   }
 }
 
@@ -44,7 +45,18 @@ export type Set_SM_Info = {
   is_same: boolean
 }
 
-export type CS_Validation = { valid: boolean; CS: CS | ''; performed_on: string | undefined | null, avalable_values: Set<CS> }
+export type CS_Validation = {
+  valid: boolean
+  CS: CS | ''
+  performed_on: string | undefined | null
+  avalable_values: Set<CS>
+}
+export type Set_CS_Info = {
+  must_update: boolean
+  retrieved_CS: CS_Validation
+  provided_CS: CS
+  is_same: boolean
+}
 
 export type TA_Validation = {
   valid: boolean

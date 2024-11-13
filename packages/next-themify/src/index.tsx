@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, PropsWithChildren } from 'react'
-import { CONFIG_SK, MODE_SK, MODES, STRATS } from './constants'
+import { COLOR_SCHEMES, CONFIG_SK, MODE_SK, MODES, STRATS } from './constants'
 import { script } from './script'
 import { Config, Keys } from './types'
 import { Script_Params } from './types/script'
@@ -23,7 +23,7 @@ export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, confi
     config_SK: config_sk || CONFIG_SK,
     mode_SK: mode_sk || MODE_SK,
     config: config,
-    constants: { STRATS, MODES },
+    constants: { STRATS, MODES, COLOR_SCHEMES },
   } satisfies Script_Params)
 
   return (

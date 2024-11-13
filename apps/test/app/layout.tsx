@@ -15,14 +15,14 @@ export default function RootLayout({
   const keys = null satisfies Keys
 
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
       <body>
         <ThemeProvider<typeof keys>
           config={{
             mode: {
               strategy: 'mono',
               key: 'default',
-              colorScheme: 'dark'
+              colorScheme: 'light'
             },
             theme: {
               strategy: 'mono',
