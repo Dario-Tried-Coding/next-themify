@@ -13,7 +13,9 @@ export type Script_Params = {
 }
 
 export type SC = Partial<Record<Prop, string>>
-export type Available_Values = Partial<Record<Prop, Set<string>>>
+export type Default_Values = Map<Prop, string>
+export type Available_Values = Map<Prop, Set<string>>
+export type Color_Schemes = Map<string, CS>
 
 export type SC_Validation = {
   SC: SC
@@ -23,7 +25,7 @@ export type SC_Validation = {
     string: string | undefined | null
     obj: object | undefined
   }
-  available_values: Available_Values
+  available_values: Partial<Record<Prop, string[]>>
 }
 export type Set_SC_Info = {
   must_update: boolean
@@ -36,7 +38,7 @@ export type SM_Validation = {
   valid: boolean
   SM: string
   performed_on: string | undefined | null
-  available_values: NonNullable<Available_Values['mode']>
+  available_values: string[]
 }
 export type Set_SM_Info = {
   must_update: boolean

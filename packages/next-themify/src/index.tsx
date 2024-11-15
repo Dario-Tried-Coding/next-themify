@@ -1,16 +1,14 @@
 'use client'
 
-import { createContext, PropsWithChildren } from 'react'
+import { createContext, PropsWithChildren, useContext } from 'react'
 import { COLOR_SCHEMES, CONFIG_SK, MODE_SK, MODES, STRATS } from './constants'
-import { script } from './script'
+import { script } from './script-1'
 import { Config, Keys } from './types'
-import { Script_Params } from './types/script'
+import { SC, Script_Params } from './types/script'
 
 // CONTEXT
-interface ContextProps {
-  test: 'test'
-}
-const Context = createContext<ContextProps | null>(null)
+interface Context extends SC {}
+const Context = createContext<Context | null>(null)
 
 // THEME PROVIDER
 interface ThemeProviderProps<K extends Keys> extends PropsWithChildren {
@@ -32,4 +30,10 @@ export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, confi
       {children}
     </Context.Provider>
   )
+}
+
+export const useTheme = () => {
+  const context = useContext(Context)
+  if (!context) throw new Error('useTheme must be used within a ThemeProvider')
+  return context
 }

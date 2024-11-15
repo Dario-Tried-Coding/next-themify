@@ -13,6 +13,7 @@ import {
   SM_Validation,
   TA_Validation,
 } from './types/script'
+import { Nullable } from './types/utils'
 
 export function script(params: Script_Params) {
   const html = document.documentElement
@@ -394,6 +395,26 @@ export function script(params: Script_Params) {
   const toggle_CN = (CN: CS) => {
     html.classList.toggle(CN, CN === 'dark')
     html.classList.toggle(CN, CN === 'light')
+  }
+
+  // #endregion
+
+  // #region STORAGE EVENTS (SE) ---------------------------------------------------------------------------------------
+
+  const handle_SM_change = (data: { new: Nullable<string>; old: Nullable<string> }, opts: { apply_SM?: boolean } = { apply_SM: true }) => {
+    const old_SM = validate_SM(data.old)
+    const new_SM = validate_SM(data.new, { fallback_SM: old_SM.SM })
+    if (!new_SM.valid) return
+
+    if (opts.apply_SM) apply_SM(new_SM.SM)
+    set_SC({ mode: new_SM.SM })
+  }
+
+  const handle_SC_change = (data: { new: Nullable<string>, old: Nullable<string> }) => {
+    const old_SC = validate_SC(data.old)
+    const new_SC = validate_SC(data.new, { fallback_SC: old_SC.SC })
+
+    
   }
 
   // #endregion

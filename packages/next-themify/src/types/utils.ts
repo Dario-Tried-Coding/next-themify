@@ -1,3 +1,10 @@
+export type Nullable<T> = T | null | undefined
+export type UndefinedOr<T> = T | undefined
+
+export type Prettify<T> = {
+  [K in keyof T]: T[K]
+} & {}
+
 export type AtLeastOne<T> = NonNullable<
   {
     [K in keyof T]: Required<Pick<T, K>> & Partial<Omit<T, K>>
