@@ -31,10 +31,6 @@ export default function RootLayout({
             theme: {
               strategy: 'mono',
               key: 'prova-theme',
-            },
-            radius: {
-              strategy: 'mono',
-              key: 'default'
             }
           }}
         >

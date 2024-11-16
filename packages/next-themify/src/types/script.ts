@@ -1,5 +1,6 @@
 import { Config, Prop } from '.'
 import { COLOR_SCHEMES, Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
+import { Nullable, UndefinedOr } from './utils'
 
 export type Script_Params = {
   config_SK: string
@@ -20,18 +21,33 @@ export type Color_Schemes = Map<string, CS>
 export type SC_Validation = {
   SC: SC
   valid: boolean
-  results: Record<string, [string, boolean]>
+  results: Map<string, [boolean, string, boolean]>
   performed_on: {
-    string: string | undefined | null
-    obj: object | undefined
+    string: Nullable<string>
+    obj: Nullable<object>
   }
-  available_values: Partial<Record<Prop, string[]>>
+  available_values: Available_Values
 }
-export type Set_SC_Info = {
+export type Set_SC = {
   must_update: boolean
   retrieved_SC: SC_Validation
   provided_SC: SC
   is_same: boolean
+}
+
+export type TA_Validation = {
+  TA: { prop: { value: Prop; valid: true } | { value: Nullable<string>; valid: false }; value: { value: Nullable<string>; valid: boolean } }
+  fallback_value: UndefinedOr<string>
+  available_values: Set<string>
+}
+export type Set_TAs = {
+  [key in keyof SC]: {
+    must_update: boolean
+    retrieved_value: TA_Validation['TA']['value']
+    received_value: string
+    is_same: boolean
+    available_values: Set<string>
+  }
 }
 
 export type SM_Validation = {
@@ -58,19 +74,4 @@ export type Set_CS_Info = {
   retrieved_CS: CS_Validation
   provided_CS: CS
   is_same: boolean
-}
-
-export type TA_Validation = {
-  valid: boolean
-  value: string
-  performed_on: [Prop, string | undefined | null]
-  available_values: Set<string>
-}
-export type Set_TAs_Info = {
-  [key in keyof SC]: {
-    must_update: boolean
-    retrieved_TA: TA_Validation
-    provided_value: string
-    is_same: boolean
-  }
 }
