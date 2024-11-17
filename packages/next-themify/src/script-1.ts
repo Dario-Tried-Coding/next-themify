@@ -133,7 +133,7 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     if (!parsed_map) return { results: undefined, valid: false, performed_on: string, fallback_values, available_values, valid_SC: fallback_values }
 
     const results: NonNullable<SC_Validation['results']> = new Map()
-    const valid_SC: SC = fallback_values
+    const valid_SC: SC = new Map()
     let valid = true
 
     for (const [prop, value] of parsed_map) {
@@ -158,6 +158,7 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     for (const prop of handled_props) {
       if (valid_SC.has(prop)) continue
       valid_SC.set(prop, fallback_values.get(prop) as string)
+      valid = false
     }
 
     return { results, fallback_values, valid, performed_on: string, available_values, valid_SC }
@@ -167,69 +168,68 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
 
   const set_SC = (SC: SC, opts?: { force?: boolean }): Set_SC => {
     const retrieved_SC = get_SC()
-    
+
     const is_valid = retrieved_SC.valid
     const is_same = is_SameMap(SC, retrieved_SC.valid_SC)
 
-    if (is_valid && is_same && !opts?.force) return { must_update: false, retrieved_SC, provided_SC: SC, is_same}
+    if (is_valid && is_same && !opts?.force) return { must_update: false, retrieved_SC, received_SC: SC }
 
-    localStorage.setItem(config_SK, JSON.stringify(SC))
-    return { must_update: true, retrieved_SC, provided_SC: SC, is_same}
+    localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(SC)))
+    return { must_update: true, retrieved_SC, received_SC: SC }
   }
   // #endregion
 
   // #region THEME ATTRIBUTES (TAs) -----------------------------------------------------------------------
+  const validate_TA = ({ prop, value }: { prop: Nullable<string>; value: Nullable<string> }, opts?: { fallback_value?: string }): TA_Validation => {
+    if (!prop || !handled_props.has(prop as Prop))
+      return { results: { prop, is_handled: false, value, valid: false }, valid: false, valid_TA: undefined, available_values: undefined, fallback_value: undefined }
 
-  // const validate_TA = ({ prop, value }: { prop: Nullable<string>; value: Nullable<string> }, opts?: { fallback_value?: string }): TA_Validation => {
-  //   if (!prop || !handled_props.has(prop as keyof typeof config))
-  //     return {
-  //       TA: { prop: { value: prop, valid: false }, value: { value, valid: false } },
-  //       fallback_value: undefined,
-  //       available_values: new Set(),
-  //     }
+    const fallback_value = opts?.fallback_value ?? (default_values.get(prop as Prop) as string)
+    const available_TA_values = available_values.get(prop as Prop) as Set<string>
 
-  //   const handled_prop = prop as keyof typeof config
-  //   const fallback_value = opts?.fallback_value ?? (default_values.get(prop as keyof typeof config) as string)
-  //   const available_TA_values = available_values.get(handled_prop) as Set<string>
+    if (!value || !available_TA_values.has(value))
+      return { results: { prop, is_handled: true, value, valid: false }, valid: false, valid_TA: { prop: prop as Prop, value: fallback_value }, available_values: available_TA_values, fallback_value }
 
-  //   if (!value || !available_TA_values.has(value))
-  //     return {
-  //       TA: { prop: { value: handled_prop, valid: true }, value: { value, valid: false } },
-  //       fallback_value,
-  //       available_values: available_TA_values,
-  //     }
+    return { results: { prop, is_handled: true, value, valid: true }, valid: true, valid_TA: { prop: prop as Prop, value }, available_values: available_TA_values, fallback_value }
+  }
 
-  //   const available_value = value as string
-  //   return {
-  //     TA: { prop: { value: handled_prop, valid: true }, value: { value: available_value, valid: true } },
-  //     fallback_value,
-  //     available_values: available_TA_values,
-  //   }
-  // }
+  const get_TA = (prop: Prop, opts?: { fallback_value?: string }): TA_Validation => validate_TA({ prop, value: html.getAttribute(`data-${prop}`) }, opts)
 
-  // const get_TA = (prop: Prop, opts?: { fallback_value?: string }): TA_Validation => validate_TA({ prop, value: html.getAttribute(`data-${prop}`) }, opts)
+  const set_TAs = (SC: SC, opts?: { force?: boolean }): Set_TAs => {
+    const info: Set_TAs = new Map()
 
-  // const set_TAs = (SC: SC, opts?: { force?: boolean }): Set_TAs => {
-  //   const info: Set_TAs = {}
+    for (const [prop, value] of SC) {
+      const retrieved_TA = get_TA(prop)
 
-  //   for (const [prop, value] of Object.entries(SC)) {
-  //     const t_prop = prop as keyof typeof config
-  //     const available_TA_values = available_values.get(t_prop) as Set<string>
-  //     const retrieved_TA = get_TA(t_prop)
+      const is_valid = retrieved_TA.valid
+      const is_same = retrieved_TA.results.value === value
+      if (is_valid && is_same && !opts?.force) {
+        info.set(prop, { must_update: false, received_TA: { prop, value }, retrieved_TA })
+        continue
+      }
 
-  //     const is_valid = retrieved_TA.TA.value.valid
-  //     const is_same = retrieved_TA.TA.value.valid && retrieved_TA.TA.value.value === value
-  //     if (is_valid && is_same && !opts?.force) {
-  //       info[t_prop] = { must_update: false, is_same, retrieved_value: retrieved_TA.TA.value, received_value: value, available_values: available_TA_values }
-  //       continue
-  //     }
+      html.setAttribute(`data-${prop}`, value)
+      info.set(prop, {must_update: true, received_TA: { prop, value }, retrieved_TA })
+    }
 
-  //     html.setAttribute(`data-${t_prop}`, value)
-  //     info[t_prop] = { must_update: true, is_same, retrieved_value: retrieved_TA.TA.value, received_value: value, available_values: available_TA_values }
-  //   }
+    return info
+  }
 
-  //   return info
-  // }
+  // #endregion
+
+  // #region INITIALIZATION --------------------------------------------------------------------------------
+
+  const apply_SC = (SC: SC) => {
+    set_TAs(SC)
+    set_SC(SC)
+  }
+
+  const init = () => {
+    const retrieved_SC = get_SC()
+    apply_SC(retrieved_SC.valid_SC)
+  }
+
+  init()
 
   // #endregion
 }

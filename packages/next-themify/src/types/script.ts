@@ -28,25 +28,25 @@ export type SC_Validation = {
 }
 export type Set_SC = {
   must_update: boolean
-  is_same: boolean
   retrieved_SC: SC_Validation
-  provided_SC: SC
+  received_SC: SC
 }
 
 export type TA_Validation = {
-  TA: { prop: { value: Prop; valid: true } | { value: Nullable<string>; valid: false }; value: { value: Nullable<string>; valid: boolean } }
+  results: { prop: Nullable<string>; is_handled: boolean; value: Nullable<string>; valid: boolean }
   fallback_value: UndefinedOr<string>
-  available_values: Set<string>
+  valid: boolean
+  valid_TA: UndefinedOr<{ prop: Prop; value: string }>
+  available_values: UndefinedOr<Set<string>>
 }
-export type Set_TAs = {
-  [key in keyof SC]: {
+export type Set_TAs = Map<
+  Prop,
+  {
     must_update: boolean
-    retrieved_value: TA_Validation['TA']['value']
-    received_value: string
-    is_same: boolean
-    available_values: Set<string>
+    retrieved_TA: TA_Validation
+    received_TA: {prop: Prop, value: string}
   }
-}
+>
 
 export type SM_Validation = {
   valid: boolean
