@@ -19,17 +19,18 @@ export type Available_Values = Map<Prop, Set<string>>
 export type Color_Schemes = Map<string, CS>
 
 export type SC_Validation = {
-  SC: UndefinedOr<Map<string, { is_handled: boolean; value: Nullable<string>; valid: boolean }>>
+  results: UndefinedOr<Map<string, { is_handled: boolean; value: Nullable<string>; valid: boolean }>>
   fallback_values: Default_Values
   valid: boolean
+  valid_SC: SC
   performed_on: Nullable<string>
   available_values: Available_Values
 }
 export type Set_SC = {
   must_update: boolean
-  retrieved_SC: SC_Validation['SC']
+  is_same: boolean
+  retrieved_SC: SC_Validation
   provided_SC: SC
-  is_same: Map<Prop, boolean>
 }
 
 export type TA_Validation = {

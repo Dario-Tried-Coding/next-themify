@@ -5,7 +5,7 @@ import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_SCHEMES }, config }: Script_Params) {
   // #region HELPERS ---------------------------------------------------------------------------------------
-  
+
   /** Handles undefined | null too... */
   function parse_JsonToMap(string: Nullable<string>): UndefinedOr<Map<string, string>> {
     if (typeof string !== 'string' || string.trim() === '') return undefined
@@ -24,6 +24,22 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     } catch (error) {
       return undefined
     }
+  }
+
+  const is_SameMap = (map1: Map<any, any>, map2: Map<any, any>) => {
+    if (!(map1 instanceof Map) || !(map2 instanceof Map)) return false
+    if (map1.size !== map2.size) return false
+
+    for (const [key, value] of map1) {
+      if (!map2.has(key)) return false
+
+      const otherValue = map2.get(key)
+      if (value instanceof Map && otherValue instanceof Map) {
+        if (!is_SameMap(value, otherValue)) return false
+      } else if (value !== otherValue) return false
+    }
+
+    return true
   }
 
   // #endregion
@@ -114,101 +130,52 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     const fallback_values = merge_SCs(opts?.fallback_SC)
 
     const parsed_map = parse_JsonToMap(string)
-    if (!parsed_map) return { SC: undefined, fallback_values, valid: false, performed_on: string, available_values }
+    if (!parsed_map) return { results: undefined, valid: false, performed_on: string, fallback_values, available_values, valid_SC: fallback_values }
 
-    const SC: NonNullable<SC_Validation['SC']> = new Map()
+    const results: NonNullable<SC_Validation['results']> = new Map()
+    const valid_SC: SC = fallback_values
     let valid = true
 
     for (const [prop, value] of parsed_map) {
       if (!handled_props.has(prop as Prop)) {
-        SC.set(prop, { is_handled: false, value, valid: false })
+        results.set(prop, { is_handled: false, value, valid: false })
         valid = false
         continue
       }
 
       const handled_prop = prop as Prop
       if (!available_values.get(handled_prop)?.has(value)) {
-        SC.set(handled_prop, { is_handled: true, value, valid: false })
+        results.set(handled_prop, { is_handled: true, value, valid: false })
+        valid_SC.set(handled_prop, fallback_values.get(handled_prop) as string)
         valid = false
         continue
       }
 
-      SC.set(handled_prop, { is_handled: true, value, valid: true })
+      results.set(handled_prop, { is_handled: true, value, valid: true })
+      valid_SC.set(handled_prop, value)
     }
 
-    return { SC, fallback_values, valid, performed_on: string, available_values }
-  }
-
-  const get_SC = (opts?: { fallback_SC?: SC }):SC_Validation => validate_SC(localStorage.getItem(config_SK), opts)
-
-  const construct_valid_SC = ({SC, fallback_values}: SC_Validation) => {
-    const valid_SC: SC = fallback_values
-
-    if (!SC) return valid_SC
-    for (const [prop, { is_handled, value, valid }] of SC) {
-      if (!is_handled || !value || !valid) continue
-      valid_SC.set(prop as Prop, value)
+    for (const prop of handled_props) {
+      if (valid_SC.has(prop)) continue
+      valid_SC.set(prop, fallback_values.get(prop) as string)
     }
+
+    return { results, fallback_values, valid, performed_on: string, available_values, valid_SC }
   }
 
-  const set_SC = (SC: SC, opts?: { force?: boolean }) => {
+  const get_SC = (opts?: { fallback_SC?: SC }): SC_Validation => validate_SC(localStorage.getItem(config_SK), opts)
+
+  const set_SC = (SC: SC, opts?: { force?: boolean }): Set_SC => {
     const retrieved_SC = get_SC()
+    
     const is_valid = retrieved_SC.valid
-    
-    
+    const is_same = is_SameMap(SC, retrieved_SC.valid_SC)
+
+    if (is_valid && is_same && !opts?.force) return { must_update: false, retrieved_SC, provided_SC: SC, is_same}
+
+    localStorage.setItem(config_SK, JSON.stringify(SC))
+    return { must_update: true, retrieved_SC, provided_SC: SC, is_same}
   }
-
-  // const validate_SC = (unsafe_string: Nullable<string>, opts?: { fallback_SC?: SC }): SC_Validation => {
-  //   const fallback_SC = merge_SCs(opts?.fallback_SC)
-
-  //   const parsed_obj = parse_JsonToObj(unsafe_string)
-  //   if (!parsed_obj) return { SC: fallback_SC, valid: false, results: new Map(), performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
-
-  //   const obj_to_validate = { ...parsed_obj }
-  //   const results: SC_Validation['results'] = new Map()
-  //   let valid = true
-
-  //   for (const [unsafe_prop, unsafe_value] of Object.entries(obj_to_validate)) {
-  //     if (!handled_props.has(unsafe_prop as keyof typeof config)) {
-  //       results.set(unsafe_prop, [false, unsafe_value, false])
-  //       delete obj_to_validate[unsafe_prop]
-  //       valid = false
-  //       continue
-  //     }
-
-  //     const curr_handled_prop = unsafe_prop as keyof typeof config
-  //     if (!available_values.get(curr_handled_prop)?.has(unsafe_value)) {
-  //       results.set(curr_handled_prop, [true, unsafe_value, false])
-  //       obj_to_validate[curr_handled_prop] = fallback_SC[curr_handled_prop]
-  //       valid = false
-  //       continue
-  //     }
-
-  //     const valid_value = unsafe_value as string
-  //     results.set(curr_handled_prop, [true, valid_value, true])
-  //   }
-
-  //   for (const prop of handled_props) {
-  //     if (prop in obj_to_validate) continue
-  //     obj_to_validate[prop] = fallback_SC[prop]
-  //     valid = false
-  //   }
-
-  //   const SC = obj_to_validate as SC
-  //   return { SC, valid, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values, results }
-  // }
-
-  // const get_SC = (opts?: { fallback_SC?: SC }): SC_Validation => validate_SC(localStorage.getItem(config_SK), opts)
-
-  // const set_SC = (SC: SC, opts?: { force?: boolean }): Set_SC => {
-  //   const retrieved_SC = get_SC()
-
-  //   const is_same = isSameObj(SC, retrieved_SC.SC)
-  //   if (is_same && !opts?.force) return { must_update: false, retrieved_SC, provided_SC: SC, is_same }
-
-  //   localStorage.setItem(config_SK, JSON.stringify(SC))
-  //   return { must_update: true, retrieved_SC, provided_SC: SC, is_same }
-  // }
   // #endregion
 
   // #region THEME ATTRIBUTES (TAs) -----------------------------------------------------------------------
