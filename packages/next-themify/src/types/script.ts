@@ -13,26 +13,23 @@ export type Script_Params = {
   }
 }
 
-export type SC = Partial<Record<Prop, string>>
-export type Default_Values = Map<Prop, string>
+export type SC = Map<Prop, string>
+export type Default_Values = SC
 export type Available_Values = Map<Prop, Set<string>>
 export type Color_Schemes = Map<string, CS>
 
 export type SC_Validation = {
-  SC: SC
+  SC: UndefinedOr<Map<string, { is_handled: boolean; value: Nullable<string>; valid: boolean }>>
+  fallback_values: Default_Values
   valid: boolean
-  results: Map<string, [boolean, string, boolean]>
-  performed_on: {
-    string: Nullable<string>
-    obj: Nullable<object>
-  }
+  performed_on: Nullable<string>
   available_values: Available_Values
 }
 export type Set_SC = {
   must_update: boolean
-  retrieved_SC: SC_Validation
+  retrieved_SC: SC_Validation['SC']
   provided_SC: SC
-  is_same: boolean
+  is_same: Map<Prop, boolean>
 }
 
 export type TA_Validation = {
