@@ -1,449 +1,221 @@
-import { Color_Scheme as CS } from './constants'
-import { Custom_Mode_Strat, Prop } from './types/index'
-import {
-  Available_Values,
-  CS_Validation,
-  SC,
-  SC_Validation,
-  Script_Params,
-  Set_CS_Info,
-  Set_SC_Info,
-  Set_SM_Info,
-  Set_TAs_Info,
-  SM_Validation,
-  TA_Validation,
-} from './types/script'
-import { Nullable } from './types/utils'
+import { Prop } from './types/index'
+import { Available_Values, Default_Values, Fallback_Values, Handled_Props, Script_Params, Set_Storage_Values, Storage_Values, Storage_Values_Sanitization } from './types/script'
+import { Nullable, UndefinedOr } from './types/utils'
 
-export function script(params: Script_Params) {
+export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
   const html = document.documentElement
 
-  const {
-    config_SK,
-    mode_SK,
-    config,
-    constants: { STRATS, MODES, COLOR_SCHEMES },
-  } = params
+  const handled_props = get_handled_props()
+  const available_values = get_available_values()
+  const default_values = get_default_values()
+  const fallback_values = get_fallback_values()
 
-  let init_library = true
-
-  // #region HELPERS --------------------------------------------------------------------------
-
-  /** Parses a JSON string and returns the corresponding object if valid. */
-  function parse_JsonToObj(string: string | undefined | null): Record<string, any> | undefined {
+  // #region HELPERS --------------------------------------------------------------------------------
+  function parse_JsonToMap(string: Nullable<string>): UndefinedOr<Map<string, string>> {
     if (typeof string !== 'string' || string.trim() === '') return undefined
+
+    const map = new Map<string, string>()
 
     try {
       const result = JSON.parse(string)
       if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
         for (const key in result) {
-          if (typeof key !== 'string') {
-            return undefined
-          }
+          if (typeof key !== 'string' || typeof result[key] !== 'string') return undefined
+          map.set(key, result[key])
         }
-        return result
+        return map
       }
     } catch (error) {
       return undefined
     }
   }
 
-  /** Compares two objects to determine if they are the same. */
-  function isSameObj(obj1: Record<string, any> | undefined | null, obj2: Record<string, any> | undefined | null) {
-    if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) return false
+  function is_SameMap(map1: Map<any, any>, map2: Map<any, any>) {
+    if (!(map1 instanceof Map) || !(map2 instanceof Map)) return false
+    if (map1.size !== map2.size) return false
 
-    const keys1 = Object.keys(obj1)
-    const keys2 = Object.keys(obj2)
+    for (const [key, value] of map1) {
+      if (!map2.has(key)) return false
 
-    if (keys1.length !== keys2.length) return false
-
-    for (const key of keys1) {
-      const val1 = obj1[key]
-      const val2 = obj2[key]
-
-      const areObjects = typeof val1 === 'object' && val1 !== null && typeof val2 === 'object' && val2 !== null
-
-      if ((areObjects && !isSameObj(val1, val2)) || (!areObjects && val1 !== val2)) return false
+      const otherValue = map2.get(key)
+      if (value instanceof Map && otherValue instanceof Map) {
+        if (!is_SameMap(value, otherValue)) return false
+      } else if (value !== otherValue) return false
     }
 
     return true
   }
-
-  // #endregion
-
-  // #region UTILS ------------------------------------------------------------------------------------------------------
-
-  const warn = (msg: string, ...args: any[]) => {
-    console.warn(`[next-themify] ${msg}`, ...args)
-    init_library = false
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS ----------------------------------------------------------------------------------
+  // #region UTILS - handled props -----------------------------------------------------------------
+  function get_handled_props(): Handled_Props {
+    return new Set(Object.keys(config) as Prop[])
   }
+  function is_handled_prop(prop: Nullable<string>) {
+    if (!prop) return false
+    return handled_props.has(prop as Prop)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS - available values ---------------------------------------------------------------
+  function get_available_values(): Available_Values {
+    const available_values: Map<Prop, Set<string>> = new Map()
+    for (const [prop, strat_obj] of Object.entries(config)) {
+      const t_prop = prop as keyof typeof config
 
-  const construct_available_values = (): Available_Values => {
-    const available_values: Available_Values = {}
-
-    for (const [key, strat_obj] of Object.entries(config)) {
-      const typed_key = key as keyof typeof available_values
-
-      if (strat_obj.strategy === 'mono') available_values[typed_key] = new Set([strat_obj.key])
-      else if (strat_obj.strategy === 'multi') available_values[typed_key] = new Set(strat_obj.keys)
-      else if (strat_obj.strategy === 'custom') available_values[typed_key] = new Set(strat_obj.keys.map((i) => i.key))
-      else if (strat_obj.strategy === 'light_dark')
-        available_values[typed_key] = new Set(
-          Object.values(strat_obj.keys)
-            .flat()
-            .map((i) => (typeof i === 'string' ? i : i.key))
+      if (strat_obj.strategy === STRATS.mono) available_values.set(t_prop, new Set([strat_obj.key]))
+      else if (strat_obj.strategy === STRATS.custom) available_values.set(t_prop, new Set(strat_obj.keys.map((i) => i.key)))
+      else if (strat_obj.strategy === STRATS.multi) available_values.set(t_prop, new Set(strat_obj.keys))
+      else if (strat_obj.strategy === STRATS.light_dark)
+        available_values.set(
+          t_prop,
+          new Set(
+            Object.values(strat_obj.keys)
+              .flat()
+              .map((i) => (typeof i === 'string' ? i : i.key))
+          )
         )
     }
-
     return available_values
   }
-
-  const construct_default_values = (): SC => {
-    const default_values: SC = {}
-
+  function is_available_value(prop: Prop, value: Nullable<string>) {
+    if (!value) return false
+    return (available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>).has(value)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS - default values -----------------------------------------------------------------
+  function get_default_values(): Default_Values {
+    const default_values: Map<Prop, string> = new Map()
     for (const [key, value] of Object.entries(config)) {
-      const typed_key = key as keyof typeof default_values
+      const t_key = key as Prop
 
-      if (value.strategy === STRATS.mono) default_values[typed_key] = value.key
-      else default_values[typed_key] = value.default
+      if (value.strategy === STRATS.mono) default_values.set(t_key, value.key)
+      else default_values.set(t_key, value.default)
     }
-
     return default_values
   }
+  function is_default_value(prop: Prop, value: Nullable<string>) {
+    if (!value) return false
+    return default_values.get(prop) === value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS - fallback values ----------------------------------------------------------------
+  function get_fallback_values(): Fallback_Values {
+    const fallback_values: Map<Prop, string> = new Map()
+    for (const [key, value] of Object.entries(config)) {
+      const t_key = key as Prop
 
-  // #endregion
+      if (value.strategy === STRATS.mono) fallback_values.set(t_key, value.key)
+      else if (value.strategy === STRATS.custom || value.strategy === STRATS.multi) fallback_values.set(t_key, value.default)
+      else if (value.strategy === STRATS.light_dark) {
+        const fallback_value = value.enableSystem ? value.fallback : value.default
+        fallback_values.set(t_key, fallback_value)
+      }
+    }
+    return fallback_values
+  }
+  function is_fallback_value(prop: Prop, value: Nullable<string>) {
+    if (!value) return false
+    return fallback_values.get(prop) === value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE VALUES (SVs) -------------------------------------------------------------------
+  function merge_SVs(...values: Nullable<Storage_Values>[]): Storage_Values {
+    const merged_values = default_values
 
-  const props_to_handle = Object.keys(config) as Prop[]
-  const available_values = construct_available_values()
-  const default_values = construct_default_values()
-
-  // #region STORAGE CONFIG (SC) -----------------------------------------------------------------------------------------
-
-  const merge_SCs = (...SCs: (SC | undefined)[]): SC => {
-    const merged_SC: SC = {}
-
-    for (const SC of SCs) {
-      if (!SC) continue
-      for (const prop of props_to_handle) {
-        if (prop in SC) merged_SC[prop] = SC[prop]
+    for (const map of values) {
+      if (!map) continue
+      for (const prop of handled_props) {
+        if (map.has(prop)) merged_values.set(prop, map.get(prop) as NonNullable<ReturnType<(typeof map)['get']>>)
       }
     }
 
-    return merged_SC
+    return merged_values
   }
-
-  const validate_SC = (unsafe_string: string | undefined | null, opts?: { fallback_SC?: SC }): SC_Validation => {
-    const fallback_SC = merge_SCs(default_values, opts?.fallback_SC)
-
-    const parsed_obj = parse_JsonToObj(unsafe_string)
-    if (!parsed_obj) return { SC: fallback_SC, valid: false, results: {}, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
-
-    const edited_obj = { ...parsed_obj }
-    const results: SC_Validation['results'] = {}
+  // #region STORAGE VALUES - sanitizer ------------------------------------------------------------
+  function sanitize_SVs(values: UndefinedOr<Map<string, string>>): Storage_Values_Sanitization {
     let valid = true
+    const results: NonNullable<Storage_Values_Sanitization['results']> = new Map()
+    const sanitized_values: Storage_Values_Sanitization['sanitized_values'] = default_values
 
-    for (const [unsafe_prop, unsafe_value] of Object.entries(edited_obj)) {
-      if (!props_to_handle.includes(unsafe_prop as Prop)) {
-        results[unsafe_prop] = [unsafe_value, false]
-        delete edited_obj[unsafe_prop]
+    if (!values) return { valid: false, results, sanitized_values, fallback_values: default_values, available_values, handled_props, performed_on: values }
+
+    for (const [prop, value] of values) {
+      const handled_prop = prop as typeof handled_props extends Set<infer T> ? T : never
+      if (!handled_props.has(handled_prop)) {
         valid = false
+        results.set(prop, { prop, is_handled: false, value, valid: false })
         continue
       }
 
-      const prop_to_handle = unsafe_prop as Prop
-      const is_available_value = available_values[prop_to_handle]?.has(unsafe_value)
-      if (!is_available_value) {
-        results[prop_to_handle] = [unsafe_value, false]
-        edited_obj[prop_to_handle] = fallback_SC[prop_to_handle]
+      if (!available_values.get(handled_prop)?.has(value)) {
         valid = false
+        results.set(prop, { prop, is_handled: true, value, valid: false })
         continue
       }
 
-      const available_value = unsafe_value as string
-      results[prop_to_handle] = [available_value, true]
+      results.set(prop, { prop, is_handled: true, value, valid: true })
+      sanitized_values.set(handled_prop, value)
     }
 
-    for (const prop of props_to_handle) {
-      if (prop in edited_obj) continue
-      edited_obj[prop] = fallback_SC[prop]
-      valid = false
+    for (const prop of handled_props) {
+      if (!values.has(prop)) {
+        valid = false
+        results.set(prop, { prop, is_handled: true, value: null, valid: false })
+      }
     }
 
-    const SC_to_return = edited_obj as SC
-    return { SC: SC_to_return, valid, results, performed_on: { string: unsafe_string, obj: parsed_obj }, available_values }
+    return { results, valid, sanitized_values, fallback_values: default_values, available_values, handled_props, performed_on: values }
   }
-
-  const get_SC = (opts?: { fallback_SC?: SC }): SC_Validation => {
+  // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE VALUES - getter ----------------------------------------------------------------
+  function get_SVs(): UndefinedOr<Map<string, string>> {
     const storage_string = localStorage.getItem(config_SK)
-    const validation = validate_SC(storage_string, opts)
-    return validation
+    return parse_JsonToMap(storage_string)
   }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE VALUES - setter ----------------------------------------------------------------
+  function set_SVs(values: Storage_Values): Set_Storage_Values {
+    const info: Set_Storage_Values['info'] = new Map()
+    const storage_values: Storage_Values = new Map()
+    let must_update = false
 
-  const set_SC = (SC: SC, opts?: { force?: boolean }): Set_SC_Info => {
-    const retrieved_SC = get_SC()
+    const { results } = sanitize_SVs(get_SVs())
+    for (const prop of handled_props) {
+      const retrieved_value = results?.get(prop)?.value
+      const provided_value = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
+      const available_values = get_available_values().get(prop) as NonNullable<ReturnType<ReturnType<typeof get_available_values>['get']>>
+      const was_valid = results?.get(prop)?.valid ?? false
+      const is_same = retrieved_value === provided_value
+      const must_be_updated = !was_valid || (was_valid && !is_same)
 
-    const is_same = isSameObj(retrieved_SC.SC, SC)
-    if (retrieved_SC.valid && is_same && !opts?.force) return { must_update: false, retrieved_SC, provided_SC: SC, is_same }
-
-    localStorage.setItem(config_SK, JSON.stringify(SC))
-    return { must_update: true, retrieved_SC, provided_SC: SC, is_same }
-  }
-
-  // #endregion
-
-  // #region THEME ATTRIBUTES (TA) -----------------------------------------------------------------------------------------
-  const validate_TA = (TA: [Prop, string | undefined | null], opts?: { fallback_value?: string }): TA_Validation => {
-    const [prop, value] = TA
-
-    if (!default_values[prop] || !available_values[prop]) {
-      warn("Func: validate_TA - trying to validate a theme attribute that's not enabled in the config object.", { theme_attribute: prop, config })
-      return { valid: false, value: '', performed_on: TA, available_values: new Set([]) }
-    }
-
-    const fallback_value = opts?.fallback_value ?? default_values[prop]
-
-    if (!value) return { valid: false, value: fallback_value, performed_on: TA, available_values: available_values[prop] }
-
-    const is_valid_value = available_values[prop].has(value)
-    if (!is_valid_value) return { valid: false, value: fallback_value, performed_on: TA, available_values: available_values[prop] }
-
-    return { valid: true, value, performed_on: TA, available_values: available_values[prop] }
-  }
-
-  const get_TA = (prop: Prop, opts?: { fallback_value?: string }): TA_Validation => {
-    const name = `data-${prop}`
-    const retrieved_TA = html.getAttribute(name)
-    return validate_TA([prop, retrieved_TA], { fallback_value: opts?.fallback_value })
-  }
-
-  const set_TAs = (SC: SC, opts?: { force?: boolean }): Set_TAs_Info => {
-    const info: Set_TAs_Info = {}
-
-    for (const [prop, value] of Object.entries(SC)) {
-      const typed_prop = prop as keyof typeof SC
-      const TA_name = `data-${typed_prop}` as const
-
-      const retrieved_TA = get_TA(typed_prop)
-
-      const is_same = retrieved_TA.value === value
-
-      if (retrieved_TA.valid && retrieved_TA.value === value && !opts?.force) {
-        info[typed_prop] = { must_update: false, retrieved_TA, provided_value: value, is_same }
+      if (must_be_updated) {
+        info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: true })
+        storage_values.set(prop, provided_value)
+        must_update = true
         continue
       }
 
-      html.setAttribute(TA_name, value)
-      info[typed_prop] = { must_update: true, retrieved_TA, provided_value: value, is_same }
+      info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: false })
+      storage_values.set(prop, retrieved_value as NonNullable<typeof retrieved_value>)
     }
 
-    return info
-  }
-
-  // #endregion
-
-  // #region STORAGE MODE (SM) -----------------------------------------------------------------------------------------
-
-  const validate_SM = (SM: string | undefined | null, opts?: { fallback_SM?: string }): SM_Validation => {
-    if (!config.mode || !available_values.mode || !default_values.mode)
-      return { valid: false, SM: '', performed_on: SM, available_values: new Set([]) }
-
-    const fallback_SM = opts?.fallback_SM ?? default_values.mode
-    const available_SMs = available_values.mode
-
-    if (!SM) return { valid: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
-
-    const is_SM_valid = available_SMs.has(SM)
-    if (!is_SM_valid) return { valid: false, SM: fallback_SM, performed_on: SM, available_values: available_SMs }
-
-    return { valid: true, SM, performed_on: SM, available_values: available_SMs }
-  }
-
-  const resolve_SM = () => {
-    if (!config.mode || !available_values.mode || !default_values.mode) return undefined
-
-    if (config.mode.strategy !== STRATS.light_dark) {
-      warn('Func: resolve_CM - trying to resolve color scheme but "mode" prop is not set to "light_dark" strategy.', config.mode)
-      return undefined
+    if (must_update) {
+      localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
+      return { updated: true, updated_with: storage_values, info }
     }
-
-    if (!config.mode.enableSystem) {
-      warn('Func: resolve_CM - trying to resolve color scheme but "mode.enableSystem" is set to false.', config.mode)
-      return undefined
-    }
-
-    const CS_Pref = get_CSPref()
-    if (!CS_Pref) return config.mode.fallback
-
-    return CS_Pref === 'dark' ? config.mode.keys.dark : config.mode.keys.light
+    return { updated: false, sticked_with: values, info }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #endregion -------------------------------------------------------------------------------------
+  // #region INITIALIZATION -------------------------------------------------------------------------
+  function init() {
+    const current_values = get_SVs()
+    const { sanitized_values } = sanitize_SVs(current_values)
+    set_SVs(sanitized_values)
   }
 
-  const get_SM = (): SM_Validation => {
-    const unsafe_string = localStorage.getItem(mode_SK)
-    return validate_SM(unsafe_string)
-  }
-
-  const set_SM = (SM: string, opts?: { force?: boolean }): Set_SM_Info => {
-    const retrieved_SM = get_SM()
-
-    const is_same = retrieved_SM.SM === SM
-
-    if (retrieved_SM.valid && is_same && !opts?.force) return { must_update: false, retrieved_SM, provided_SM: SM, is_same }
-
-    localStorage.setItem(mode_SK, SM)
-    return { must_update: true, retrieved_SM, provided_SM: SM, is_same }
-  }
-
-  // #endregion
-
-  // #region COLOR SCHEME (SC) -----------------------------------------------------------------------------------------
-
-  const get_CSPref = () => {
-    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
-  }
-
-  const construct_CSs = () => {
-    if (!config.mode) return {}
-
-    const CSs: Record<string, CS> = {}
-    if (config.mode.strategy === STRATS.mono) CSs[config.mode.key] = config.mode.colorScheme
-    else if (config.mode.strategy === STRATS.custom) config.mode.keys.forEach((i) => (CSs[i.key] = i.colorScheme))
-    else
-      Object.entries(config.mode.keys).forEach(([key, value]) => {
-        if (typeof value === 'string') CSs[key] = value as CS
-        else value.forEach((i) => (CSs[i.key] = i.colorScheme))
-      })
-
-    return CSs
-  }
-
-  const validate_CS = (CS: string | undefined | null, opts?: { fallback_CS?: CS }): CS_Validation => {
-    if (!config.mode) return { valid: false, CS: '', performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
-
-    let fallback_CS: CS = COLOR_SCHEMES[0]
-
-    if (config.mode.strategy === STRATS.mono) fallback_CS = config.mode.colorScheme
-    else if (config.mode.strategy === STRATS.custom)
-      fallback_CS = config.mode.keys.find((i) => i.key === (config as Custom_Mode_Strat<string[]>).default)?.colorScheme as CS
-    else if (config.mode.strategy === STRATS.light_dark) {
-      if (config.mode.default === config.mode.keys.light) fallback_CS = COLOR_SCHEMES[0]
-      if (config.mode.default === config.mode.keys.dark) fallback_CS = COLOR_SCHEMES[1]
-      if (config.mode.enableSystem && config.mode.default === config.mode.keys.system) {
-        let config_fallback_CS: CS = COLOR_SCHEMES[0]
-
-        if (config.mode.fallback === config.mode.keys.light) config_fallback_CS = COLOR_SCHEMES[0]
-        if (config.mode.fallback === config.mode.keys.dark) config_fallback_CS = COLOR_SCHEMES[1]
-
-        const is_custom_fallback = config.mode.keys.custom?.some(
-          (i) => i.key === (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && config.mode.fallback)
-        )
-        if (is_custom_fallback)
-          config_fallback_CS = config.mode.keys.custom?.find(
-            (i) => i.key === (config.mode?.strategy === 'light_dark' && config.mode.enableSystem && config.mode.fallback)
-          )?.colorScheme as CS
-
-        fallback_CS = config_fallback_CS
-      }
-    }
-
-    if (!CS) return { valid: false, CS: fallback_CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
-
-    const is_valid_CS = COLOR_SCHEMES.includes(CS as CS)
-    if (!is_valid_CS) return { valid: false, CS: fallback_CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
-
-    return { valid: true, CS: CS as CS, performed_on: CS, avalable_values: new Set(COLOR_SCHEMES) }
-  }
-
-  const get_CS = (opts?: { fallback_CS?: CS }): CS_Validation => {
-    const retrieved_CS = html.style.colorScheme
-    return validate_CS(retrieved_CS, { fallback_CS: opts?.fallback_CS })
-  }
-
-  const set_CS = (CS: CS, opts?: { force?: boolean }): Set_CS_Info => {
-    const retrieved_CS = get_CS()
-
-    const is_same = retrieved_CS.CS === CS
-    if (retrieved_CS.valid && is_same && !opts?.force) return { must_update: false, retrieved_CS, provided_CS: CS, is_same }
-
-    html.style.colorScheme = CS
-    return { must_update: true, retrieved_CS, provided_CS: CS, is_same }
-  }
-
-  const resolve_CS = (SM: string) => {
-    if (!available_values.mode?.has(SM))
-      warn('Func: resolve_CS - trying to resolve color scheme but the provided "color mode" is not valid.', { SM, config })
-
-    const CSs = construct_CSs()
-
-    if (config.mode?.strategy === STRATS.mono && SM === config.mode.key) return config.mode.colorScheme
-    else if (config.mode?.strategy === STRATS.custom && config.mode.keys.find((i) => i.key === SM))
-      return config.mode.keys.find((i) => i.key === SM)?.colorScheme as CS
-    else if (config.mode?.strategy === STRATS.light_dark) {
-      if (SM === config.mode.keys.light) return COLOR_SCHEMES[0]
-      else if (SM === config.mode.keys.dark) return COLOR_SCHEMES[1]
-      else if (config.mode.enableSystem && SM === config.mode.keys.system) {
-        const fallback_CS = CSs[config.mode.fallback] as CS
-        return get_CSPref() ?? fallback_CS
-      } else return COLOR_SCHEMES[0]
-    } else return COLOR_SCHEMES[0]
-  }
-
-  // #endregion
-
-  // #region CLASS NAME (CN) -------------------------------------------------------------------------------------------
-
-  const toggle_CN = (CN: CS) => {
-    html.classList.toggle(CN, CN === 'dark')
-    html.classList.toggle(CN, CN === 'light')
-  }
-
-  // #endregion
-
-  // #region STORAGE EVENTS (SE) ---------------------------------------------------------------------------------------
-
-  const handle_SM_change = (data: { new: Nullable<string>; old: Nullable<string> }, opts: { apply_SM?: boolean } = { apply_SM: true }) => {
-    const old_SM = validate_SM(data.old)
-    const new_SM = validate_SM(data.new, { fallback_SM: old_SM.SM })
-    if (!new_SM.valid) return
-
-    if (opts.apply_SM) apply_SM(new_SM.SM)
-    set_SC({ mode: new_SM.SM })
-  }
-
-  const handle_SC_change = (data: { new: Nullable<string>, old: Nullable<string> }) => {
-    const old_SC = validate_SC(data.old)
-    const new_SC = validate_SC(data.new, { fallback_SC: old_SC.SC })
-
-    
-  }
-
-  // #endregion
-
-  // #region INITIALIZATION --------------------------------------------------------------------------------------------
-
-  const apply_SC = (SC: SC, opts?: { store?: boolean }) => {
-    set_TAs(SC)
-    if (opts?.store) set_SC(SC)
-  }
-
-  const apply_SM = (SM: string, opts?: { store?: boolean }) => {
-    const resolved_CS = resolve_CS(SM)
-    set_CS(resolved_CS)
-    toggle_CN(resolved_CS)
-    if (opts?.store) set_SM(SM)
-  }
-
-  const init = () => {
-    const current_SC = get_SC()
-    apply_SC(current_SC.SC, { store: !current_SC.valid })
-
-    if (config.mode) {
-      const current_SM = get_SM()
-      apply_SM(current_SM.SM, { store: !current_SM.valid })
-    }
-  }
+  // #endregion -------------------------------------------------------------------------------------
 
   init()
-
-  // #endregion
 }

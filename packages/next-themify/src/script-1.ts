@@ -1,6 +1,6 @@
 import { Color_Scheme as CS } from './constants'
-import { Prop } from './types/index'
-import { Available_Values, Color_Schemes, Default_Values, SC, SC_Validation, Script_Params, Set_SC, Set_TAs, TA_Validation } from './types/script'
+import { Mode, Prop } from './types/index'
+import { Available_Values, Color_Schemes, CS_Validation, Default_Values, SC, SC_Validation, Script_Params, Set_CS, Set_SC, Set_SM, Set_TAs, SM_Validation, TA_Validation } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_SCHEMES }, config }: Script_Params) {
@@ -84,23 +84,6 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     return default_values
   }
 
-  const construct_color_schemes = (): Color_Schemes => {
-    const CSs: Color_Schemes = new Map<string, CS>()
-
-    if (!config.mode) return CSs
-
-    if (config.mode.strategy === STRATS.mono) CSs.set(config.mode.key, config.mode.colorScheme)
-    else if (config.mode.strategy === STRATS.custom) config.mode.keys.forEach((i) => CSs.set(i.key, i.colorScheme))
-    else if (config.mode.strategy === STRATS.light_dark) {
-      Object.entries(config.mode.keys).forEach(([key, value]) => {
-        if (typeof value !== 'string') value.forEach((i) => CSs.set(i.key, i.colorScheme))
-        else if (COLOR_SCHEMES.includes(key as CS)) CSs.set(key, key as CS)
-      })
-    }
-
-    return CSs
-  }
-
   // #endregion
 
   const html = document.documentElement
@@ -108,7 +91,6 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
   const handled_props = construct_handled_props()
   const available_values = construct_available_values()
   const default_values = construct_default_values()
-  const color_schemes = construct_color_schemes()
 
   // #region STORAGE CONFIG (SC) ---------------------------------------------------------------------------
 
@@ -209,10 +191,111 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
       }
 
       html.setAttribute(`data-${prop}`, value)
-      info.set(prop, {must_update: true, received_TA: { prop, value }, retrieved_TA })
+      info.set(prop, { must_update: true, received_TA: { prop, value }, retrieved_TA })
     }
 
     return info
+  }
+
+  // #endregion
+
+  // #region STORAGE MODE (SM) -----------------------------------------------------------------------------
+
+  const validate_SM = (value: Nullable<string>, opts?: { fallback_value?: string }): SM_Validation => {
+    if (!config.mode || !handled_props.has('mode') || !default_values.has('mode') || !available_values.has('mode'))
+      return { results: { is_handled: false, value, valid: false }, valid_SM: undefined, fallback_value: undefined, available_values: undefined }
+
+    const fallback_value = opts?.fallback_value ?? (default_values.get('mode') as string)
+    const available_SM_values = available_values.get('mode') as Set<string>
+
+    if (!value || !available_SM_values.has(value)) return { results: { is_handled: true, value, valid: false }, valid_SM: fallback_value, fallback_value, available_values: available_SM_values }
+    return { results: { is_handled: true, value, valid: true }, valid_SM: value, fallback_value, available_values: available_SM_values }
+  }
+
+  const get_SM = (opts?: { fallback_value?: string }): SM_Validation => validate_SM(localStorage.getItem(mode_SK), opts)
+
+  const set_SM = (value: string, opts?: { force?: boolean }): Set_SM => {
+    const retrieved_SM = get_SM()
+
+    const is_valid = retrieved_SM.results.valid
+    const is_same = retrieved_SM.results.value === value
+
+    if (is_valid && is_same && !opts?.force) return { must_update: false, retrieved_SM, received_SM: value }
+
+    localStorage.setItem(mode_SK, value)
+    return { must_update: true, retrieved_SM, received_SM: value }
+  }
+
+  // #endregion
+
+  // #region COLOR SCHEME (CS) -----------------------------------------------------------------------------
+
+  const resolve_CS = (): UndefinedOr<CS> => {
+    if (!config.mode) return undefined
+    if (!window.matchMedia || !window.matchMedia('(prefers-color-scheme)').matches) return undefined
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? MODES.dark : MODES.light
+  }
+
+  const get_modeCSs = (key: string): UndefinedOr<Mode> => {
+    if (config.mode?.strategy === STRATS.mono) return config.mode.colorScheme === key ? config.mode : undefined
+    else if (config.mode?.strategy === STRATS.custom) return config.mode.keys.find((i) => i.key === key)
+    else if (config.mode?.strategy === STRATS.light_dark) {
+      const keys: { key: string; colorScheme: CS }[] = []
+      Object.entries(config.mode.keys).forEach(([k, v]) => {
+        if (typeof v !== 'string') v.forEach((i) => keys.push(i))
+        else if (COLOR_SCHEMES.includes(k as CS)) keys.push({ key: v, colorScheme: k as CS })
+      })
+      return keys.find((i) => i.key === key)
+    }
+  }
+
+  const construct_CSs = (): Color_Schemes => {
+    const CSs: Color_Schemes = new Map<string, CS>()
+
+    if (!config.mode) return CSs
+
+    if (config.mode.strategy === STRATS.mono) CSs.set(config.mode.key, config.mode.colorScheme)
+    else if (config.mode.strategy === STRATS.custom) config.mode.keys.forEach((i) => CSs.set(i.key, i.colorScheme))
+    else if (config.mode.strategy === STRATS.light_dark) {
+      Object.entries(config.mode.keys).forEach(([key, value]) => {
+        if (key === 'light' || key === 'dark') CSs.set(value as string, key as CS)
+        else if (key === 'custom') (value as Mode<string>[]).forEach((k) => CSs.set(k.key, k.colorScheme))
+        else if (key === 'system') {
+          const default_SM = (config.mode as { default: string }).default
+          const CS =
+            config.mode?.strategy === 'light_dark' && config.mode.enableSystem && default_SM === config.mode.keys.system
+              ? (resolve_CS() ?? (get_modeCSs(config.mode.fallback) as Mode).colorScheme)
+              : (get_modeCSs(default_SM) as Mode).colorScheme
+          CSs.set(value as string, CS)
+        }
+      })
+    }
+
+    return CSs
+  }
+
+  const validate_CS = ({ mode, value }: { mode: Nullable<string>; value: Nullable<string> }, opts?: { fallback_value?: CS }): CS_Validation => {
+    if (!config.mode) return { results: { is_handled: false, mode, is_available: false, value, valid: false }, valid: false, fallback_value: undefined, valid_value: undefined }
+    if (!mode || !available_values.get('mode')?.has(mode)) return {results: {is_handled: true, mode, is_available: false, value, valid: false}, valid: false, valid_value: undefined, fallback_value: undefined}
+      
+    const mode_CSs = construct_CSs()
+    const fallback_value = opts?.fallback_value ?? (mode_CSs.get(mode) as CS)
+    if (!value || get_modeCSs(mode)?.colorScheme !== value) return { results: { is_handled: true, mode, is_available: true, value, valid: false }, valid: false, valid_value: fallback_value, fallback_value }
+
+    return { results: { is_handled: true, mode, is_available: true, value, valid: true }, valid: true, valid_value: value, fallback_value }
+  }
+
+  const get_CS = (opts?: { fallback_value?: CS }): CS_Validation => validate_CS({mode: get_SM().valid_SM, value: html.style.colorScheme}, opts)
+
+  const set_CS = (value: CS, opts?: { force?: boolean }): Set_CS => {
+    const retrieved_CS = get_CS()
+
+    const is_valid = retrieved_CS.valid
+    const is_same = retrieved_CS.results.value === value
+    if (is_valid && is_same && !opts?.force) return { must_update: false, retrieved_CS, received_CS: value }
+
+    html.style.colorScheme = value
+    return { must_update: true, retrieved_CS, received_CS: value }
   }
 
   // #endregion
@@ -224,9 +307,19 @@ export function script({ config_SK, mode_SK, constants: { STRATS, MODES, COLOR_S
     set_SC(SC)
   }
 
+  const apply_SM = (SM: string) => {
+    const modeCS = get_modeCSs(SM) as NonNullable<ReturnType<typeof get_modeCSs>>
+    console.log(SM, modeCS)
+    set_CS(modeCS.colorScheme)
+    // TODO: set_CN()
+    set_SM(SM)
+  }
+
   const init = () => {
-    const retrieved_SC = get_SC()
-    apply_SC(retrieved_SC.valid_SC)
+    const { valid_SC } = get_SC()
+    apply_SC(valid_SC)
+
+    if (config.mode) apply_SM(valid_SC.get('mode') as string)
   }
 
   init()

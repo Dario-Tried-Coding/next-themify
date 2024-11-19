@@ -26,7 +26,7 @@ export type Keys_Config = AtLeastOne<Keys> | null
 export type Prop = keyof NonNullable<Keys_Config>
 
 // #region Strats ----------------------------------------------------------------------------------------
-type Mode<Key extends string = string> = {
+export type Mode<Key extends string = string> = {
   key: Key
   colorScheme: Color_Scheme
 }

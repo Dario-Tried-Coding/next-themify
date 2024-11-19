@@ -12,7 +12,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = {mode: {dark: 'prova-dark'}, theme: 'prova-theme'} as const satisfies Keys
+  const keys = { mode: { dark: 'prova-dark', light: 'custom-light', custom: ['custom1', 'custom2'] }, theme: 'prova-theme' } as const satisfies Keys
 
   return (
     <html lang='en' suppressHydrationWarning>
@@ -21,16 +21,29 @@ export default function RootLayout({
           config={{
             mode: {
               strategy: 'light_dark',
-              enableSystem: false,
-              default: 'prova-dark',
+              enableSystem: true,
+              default: 'system',
+              fallback: 'custom2',
               keys: {
-                light: 'light',
+                light: 'custom-light',
                 dark: 'prova-dark',
-              }
+                system: 'system',
+                custom: [
+                  {
+                    key: 'custom1',
+                    colorScheme: 'dark',
+                  },
+                  { key: 'custom2', colorScheme: 'light' },
+                ],
+              },
             },
             theme: {
               strategy: 'mono',
               key: 'prova-theme',
+            },
+            radius: {
+              strategy: 'mono',
+              key: 'default'
             }
           }}
         >
