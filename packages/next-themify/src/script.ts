@@ -107,36 +107,14 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
 
     for (const [prop, default_value] of default_values) {
       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
-      const debug_props: NonNullable<ReturnType<SVs_Sanitization['values']['get']>> = {
-        prop,
-        was_provided: false,
-        is_handled: true,
-        value: undefined,
-        was_valid: false,
-        sanitized_value: default_value,
-        is_fallback: true,
-        available_values: available_prop_values,
-        default_value,
-      }
-      values.set(prop, debug_props)
+      values.set(prop, { prop, was_provided: false, is_handled: true, value: undefined, was_valid: false, sanitized_value: default_value, is_fallback: true, available_values: available_prop_values, default_value })
     }
 
     if (!prov_values) return { handled_props, performed_on: prov_values, values, were_all_valid: false }
 
     for (const [prop, value] of prov_values) {
       if (!is_handled_prop(prop)) {
-        const debug_props: NonNullable<ReturnType<SVs_Sanitization['values']['get']>> = {
-          prop,
-          was_provided: true,
-          is_handled: false,
-          value,
-          was_valid: false,
-          sanitized_value: undefined,
-          is_fallback: undefined,
-          available_values: undefined,
-          default_value: undefined,
-        }
-        values.set(prop, debug_props)
+        values.set(prop, { prop, was_provided: true, is_handled: false, value, was_valid: undefined, sanitized_value: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
         continue
       }
 
@@ -144,33 +122,11 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const available_prop_values = available_values.get(handled_prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
       const default_value = default_values.get(handled_prop) as NonNullable<ReturnType<(typeof default_values)['get']>>
       if (!is_available_value(handled_prop, value)) {
-        const debug_props: NonNullable<ReturnType<SVs_Sanitization['values']['get']>> = {
-          prop,
-          was_provided: true,
-          is_handled: true,
-          value,
-          was_valid: false,
-          sanitized_value: default_value,
-          is_fallback: true,
-          available_values: available_prop_values,
-          default_value,
-        }
-        values.set(handled_prop, debug_props)
+        values.set(handled_prop, { prop, was_provided: true, is_handled: true, value, was_valid: false, sanitized_value: default_value, is_fallback: true, available_values: available_prop_values, default_value })
         continue
       }
 
-      const debug_props: NonNullable<ReturnType<SVs_Sanitization['values']['get']>> = {
-        prop,
-        was_provided: true,
-        is_handled: true,
-        value,
-        was_valid: true,
-        sanitized_value: value,
-        is_fallback: false,
-        available_values: available_prop_values,
-        default_value,
-      }
-      values.set(prop, debug_props)
+      values.set(prop, { prop, was_provided: true, is_handled: true, value, was_valid: true, sanitized_value: value, is_fallback: false, available_values: available_prop_values, default_value })
     }
 
     const were_all_valid = Array.from(values.values()).every((i) => i.was_valid)
@@ -178,74 +134,69 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE VALUES - setter ----------------------------------------------------------------
-  function set_SVs(prov_values: Storage_Values): Set_SVs {
+  function set_SVs(provided_values: Nullable<Map<string, string>>): Set_SVs {
     const values: Set_SVs['values'] = new Map()
 
     const curr_values = sanitize_SVs(get_SVs()).values
-    for (const [prop, value] of prov_values) {
-      
+    const old_values = new Map(
+      Array.from(curr_values)
+        .filter(([prop, { was_provided }]) => was_provided)
+        .map(([prop, { value }]) => [prop, value])
+    )
+    const storage_values: Storage_Values = new Map()
+    const updated_values: Set_SVs['updated_values'] = new Map()
+
+    for (const [prop, default_value] of default_values) {
+      const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
+      const old_value = curr_values.get(prop)?.value
+      const old_valid = curr_values.get(prop)?.was_valid ?? false
+      const got_updated = !old_valid || (old_valid && old_value !== default_value)
+
+      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+      storage_values.set(prop, default_value)
+      if (got_updated) updated_values.set(prop, default_value)
     }
+
+    if (!provided_values) {
+      const updated_storage = Array.from(values.values()).some((i) => i.got_updated)
+      if (updated_storage) localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
+      return { handled_props, values, updated_storage, old_values, updated_values, provided_values: new Map() }
+    }
+
+    for (const [prop, value] of provided_values) {
+      const old_value = curr_values.get(prop)?.value
+      const old_valid = curr_values.get(prop)?.was_valid ?? false
+
+      if (!is_handled_prop(prop)) {
+        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, updated_value: undefined, got_updated: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
+        continue
+      }
+
+      const handled_prop = prop as Prop
+      const available_prop_values = available_values.get(handled_prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
+      const default_value = default_values.get(handled_prop) as NonNullable<ReturnType<(typeof default_values)['get']>>
+
+      if (!is_available_value(handled_prop, value)) {
+        const got_updated = !old_valid || (old_valid && old_value !== default_value)
+        values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+        storage_values.set(handled_prop, default_value)
+        if (got_updated) updated_values.set(handled_prop, default_value)
+        continue
+      }
+
+      const got_updated = !old_valid || (old_valid && old_value !== value)
+      const is_fallback = value === default_value
+
+      values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
+      storage_values.set(handled_prop, value)
+      if (got_updated) updated_values.set(handled_prop, value)
+    }
+
+    const updated_storage = Array.from(values.values()).some((i) => i.got_updated)
+    if (updated_storage) localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
+
+    return { handled_props, values, updated_storage, old_values, updated_values, provided_values }
   }
-  // function set_SVs(prov_values: Nullable<Storage_Values>): Set_SVs {
-  //   const values: Set_SVs['values'] = new Map()
-
-  //   const { values: curr_values } = sanitize_SVs(get_SVs())
-  //   if (!prov_values) {
-  //     for (const [prop, default_value] of default_values) {
-  //       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
-  //       const old_value = curr_values?.get(prop)?.value
-  //       const old_valid = curr_values?.get(prop)?.is_valid ?? false
-  //       const was_updated = old_value !== default_value
-  //       values.set(prop, {
-  //         prop,
-  //         was_provided: false,
-  //         is_handled: true,
-  //         old: { value: old_value, was_valid: old_valid },
-  //         new: { value: undefined, was_valid: false },
-  //         updated_value: default_value,
-  //         got_updated: true,
-  //         is_fallback: true,
-  //         available_values: available_prop_values,
-  //         default_value,
-  //       })
-  //     }
-  //     localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(default_values)))
-
-  //     return { handled_props, values }
-  //   }
-  // }
-  // console.log(set_SVs(undefined))
-  // function set_SVs(values: Storage_Values): Set_SVs {
-  //   const info: Set_SVs['info'] = new Map()
-  //   const storage_values: Storage_Values = new Map()
-  //   let must_update = false
-
-  //   const { results } = sanitize_SVs(get_SVs())
-  //   for (const prop of handled_props) {
-  //     const retrieved_value = results?.get(prop)?.value
-  //     const provided_value = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
-  //     const available_values = get_available_values().get(prop) as NonNullable<ReturnType<ReturnType<typeof get_available_values>['get']>>
-  //     const was_valid = results?.get(prop)?.valid ?? false
-  //     const is_same = retrieved_value === provided_value
-  //     const must_be_updated = !was_valid || (was_valid && !is_same)
-
-  //     if (must_be_updated) {
-  //       info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: true })
-  //       storage_values.set(prop, provided_value)
-  //       must_update = true
-  //       continue
-  //     }
-
-  //     info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: false })
-  //     storage_values.set(prop, retrieved_value as NonNullable<typeof retrieved_value>)
-  //   }
-
-  //   if (must_update) {
-  //     localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
-  //     return { updated: true, updated_with: storage_values, info }
-  //   }
-  //   return { updated: false, sticked_with: values, info }
-  // }
   // #endregion -------------------------------------------------------------------------------------
   // #endregion -------------------------------------------------------------------------------------
   // #region THEME ATTRIBUTES (TAs) -----------------------------------------------------------------
@@ -298,14 +249,11 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   // #endregion -------------------------------------------------------------------------------------
   // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
-  // function init() {
-  //   const current_values = get_SVs()
-  //   const { results } = sanitize_SVs(current_values)
-  //   set_SVs(sanitized_values)
-  //   set_TAs(sanitized_values)
-  // }
-
+  function init() {
+    const retrieved_values = get_SVs()
+    set_SVs(retrieved_values)
+  }
   // #endregion -------------------------------------------------------------------------------------
 
-  // init()
+  init()
 }

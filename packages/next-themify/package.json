@@ -29,7 +29,7 @@
     "tabWidth": 2,
     "semi": false,
     "singleQuote": true,
-    "printWidth": 250,
+    "printWidth": 400,
     "jsxSingleQuote": true
   },
   "files": [

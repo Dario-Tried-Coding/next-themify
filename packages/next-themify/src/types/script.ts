@@ -29,7 +29,7 @@ export type SVs_Sanitization = {
       prop: string
       is_handled: boolean
       value: Nullable<string>
-      was_valid: boolean
+      was_valid: UndefinedOr<boolean>
       sanitized_value: UndefinedOr<string>
       is_fallback: UndefinedOr<boolean>
       was_provided: UndefinedOr<boolean>
@@ -45,17 +45,20 @@ export type Set_SVs = {
     {
       prop: string
       is_handled: boolean
-      old: { value: Nullable<string>; was_valid: boolean }
-      new: { value: Nullable<string>; was_valid: boolean }
-      updated_value: string
+      old: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
+      new: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
+      updated_value: UndefinedOr<string>
       was_provided: boolean
-      is_fallback: boolean
-      got_updated: boolean
+      is_fallback: UndefinedOr<boolean>
+      got_updated: UndefinedOr<boolean>
       available_values: ReturnType<Available_Values['get']>
       default_value: ReturnType<Default_Values['get']>
     }
   >
-  performed_update: boolean
+  updated_storage: boolean
+  old_values: Map<string, Nullable<string>>
+  provided_values: Map<string, string>
+  updated_values: Map<string, string>
 }
 
 export type TA_Sanitization = {
