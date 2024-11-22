@@ -1,5 +1,5 @@
 import { Prop } from './types/index'
-import { Available_Values, Default_Values, Handled_Props, Script_Params, Set_SVs, Set_TAs, Storage_Values, SVs_Sanitization, TA_Sanitization } from './types/script'
+import { Available_Values, Default_Values, Handled_Props, Script_Params, Set_SVs, Set_TAs, Storage_Values, SVs_Sanitization } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -10,23 +10,26 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   const default_values = get_default_values()
 
   // #region HELPERS --------------------------------------------------------------------------------
-  function parse_JsonToMap(string: Nullable<string>): UndefinedOr<Map<string, string>> {
-    if (typeof string !== 'string' || string.trim() === '') return undefined
-
+  function parse_JsonToMap(string: Nullable<string>): Map<string, string> {
     const map = new Map<string, string>()
+    const empty_map = new Map<string, string>()
+    
+    if (typeof string !== 'string' || string.trim() === '') return empty_map
 
     try {
       const result = JSON.parse(string)
       if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
         for (const key in result) {
-          if (typeof key !== 'string' || typeof result[key] !== 'string') return undefined
+          if (typeof key !== 'string' || typeof result[key] !== 'string') continue
           map.set(key, result[key])
         }
         return map
       }
     } catch (error) {
-      return undefined
+      return empty_map
     }
+
+    return empty_map
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region UTILS ----------------------------------------------------------------------------------
@@ -83,34 +86,20 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   // #endregion -------------------------------------------------------------------------------------
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE VALUES (SVs) -------------------------------------------------------------------
-  function merge_SVs(...values: Nullable<Storage_Values>[]): Storage_Values {
-    const merged_values = default_values
-
-    for (const map of values) {
-      if (!map) continue
-      for (const prop of handled_props) {
-        if (map.has(prop)) merged_values.set(prop, map.get(prop) as NonNullable<ReturnType<(typeof map)['get']>>)
-      }
-    }
-
-    return merged_values
-  }
   // #region STORAGE VALUES - getter ----------------------------------------------------------------
-  function get_SVs(): UndefinedOr<Map<string, string>> {
+  function get_SVs() {
     const storage_string = localStorage.getItem(config_SK)
     return parse_JsonToMap(storage_string)
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE VALUES - sanitizer ------------------------------------------------------------
-  function sanitize_SVs(prov_values: Nullable<Map<string, string>>): SVs_Sanitization {
+  function sanitize_SVs(prov_values: ReturnType<typeof get_SVs>): SVs_Sanitization {
     const values: SVs_Sanitization['values'] = new Map()
 
     for (const [prop, default_value] of default_values) {
       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
       values.set(prop, { prop, was_provided: false, is_handled: true, value: undefined, was_valid: false, sanitized_value: default_value, is_fallback: true, available_values: available_prop_values, default_value })
     }
-
-    if (!prov_values) return { handled_props, performed_on: prov_values, values, were_all_valid: false }
 
     for (const [prop, value] of prov_values) {
       if (!is_handled_prop(prop)) {
@@ -134,8 +123,10 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE VALUES - setter ----------------------------------------------------------------
-  function set_SVs(provided_values: Nullable<Map<string, string>>): Set_SVs {
+  function set_SVs(provided_values: ReturnType<typeof get_SVs>): Set_SVs {
     const values: Set_SVs['values'] = new Map()
+    const storage_values: Storage_Values = new Map()
+    const updated_values: Set_SVs['updated_values'] = new Map()
 
     const curr_values = sanitize_SVs(get_SVs()).values
     const old_values = new Map(
@@ -143,32 +134,28 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
         .filter(([prop, { was_provided }]) => was_provided)
         .map(([prop, { value }]) => [prop, value])
     )
-    const storage_values: Storage_Values = new Map()
-    const updated_values: Set_SVs['updated_values'] = new Map()
 
+    // Instantiate handled props with default values (so that can be passed only values to update)
     for (const [prop, default_value] of default_values) {
       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
       const old_value = curr_values.get(prop)?.value
       const old_valid = curr_values.get(prop)?.was_valid ?? false
       const got_updated = !old_valid || (old_valid && old_value !== default_value)
+      const was_same = !old_value
 
-      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
       storage_values.set(prop, default_value)
       if (got_updated) updated_values.set(prop, default_value)
     }
 
-    if (!provided_values) {
-      const updated_storage = Array.from(values.values()).some((i) => i.got_updated)
-      if (updated_storage) localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
-      return { handled_props, values, updated_storage, old_values, updated_values, provided_values: new Map() }
-    }
-
+    // Prioritize provided values over default values to use for update
     for (const [prop, value] of provided_values) {
       const old_value = curr_values.get(prop)?.value
       const old_valid = curr_values.get(prop)?.was_valid ?? false
+      const was_same = old_value === value
 
       if (!is_handled_prop(prop)) {
-        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, updated_value: undefined, got_updated: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
+        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, was_same, updated_value: undefined, got_updated: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
         continue
       }
 
@@ -178,7 +165,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
 
       if (!is_available_value(handled_prop, value)) {
         const got_updated = !old_valid || (old_valid && old_value !== default_value)
-        values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+        values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
         storage_values.set(handled_prop, default_value)
         if (got_updated) updated_values.set(handled_prop, default_value)
         continue
@@ -187,15 +174,16 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const got_updated = !old_valid || (old_valid && old_value !== value)
       const is_fallback = value === default_value
 
-      values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
+      values.set(handled_prop, { prop: handled_prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, was_same, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
       storage_values.set(handled_prop, value)
       if (got_updated) updated_values.set(handled_prop, value)
     }
 
-    const updated_storage = Array.from(values.values()).some((i) => i.got_updated)
-    if (updated_storage) localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
+    // Update storage values if there are values that need to be updated
+    const executed_update = Array.from(values.values()).some((i) => i.got_updated)
+    if (executed_update) localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(storage_values)))
 
-    return { handled_props, values, updated_storage, old_values, updated_values, provided_values }
+    return { handled_props, values, executed_update, old_values, updated_values, provided_values }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #endregion -------------------------------------------------------------------------------------
@@ -205,46 +193,9 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     return html.getAttribute(`data-${prop}`)
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region THEME ATTRIBUTES - sanitizer ----------------------------------------------------------
-  function sanitize_TA({ prop, value }: { prop: Prop; value: Nullable<string> }): TA_Sanitization {
-    if (!handled_props.has(prop) || !value) return { results: { prop, is_handled: false, value, valid: false }, valid: false, fallback_value: undefined, default_value: undefined, available_values: undefined, handled_props }
-
-    const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<ReturnType<typeof get_available_values>['get']>>
-    const default_value = default_values.get(prop) as NonNullable<ReturnType<(typeof default_values)['get']>>
-    const fallback_value = default_values.get(prop) as NonNullable<ReturnType<(typeof default_values)['get']>>
-
-    const valid = available_values.get(prop)?.has(value) ?? false
-    if (!valid) return { results: { prop, is_handled: true, value, valid: false }, valid: false, fallback_value, default_value, available_values: available_prop_values, handled_props }
-
-    return { results: { prop, is_handled: true, value, valid: true }, valid: true, sanitized_value: value, default_value, available_values: available_prop_values, handled_props }
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region THEME ATTRIBUTES - setter -------------------------------------------------------------
-  function set_TAs(values: Storage_Values): Set_TAs {
-    const info: Set_TAs = new Map()
-
-    for (const prop of handled_props) {
-      const value = get_TA(prop)
-      const { results, available_values } = sanitize_TA({ prop, value }) as {
-        results: ReturnType<typeof sanitize_TA>['results']
-        available_values: NonNullable<ReturnType<typeof sanitize_TA>['available_values']>
-      }
-      const retrieved_value = results.value
-      const provided_value = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
-      const was_valid = results.valid
-      const is_same = retrieved_value === provided_value
-      const must_update = !was_valid || (was_valid && !is_same)
-
-      if (must_update) {
-        info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: true })
-        html.setAttribute(`data-${prop}`, provided_value)
-        continue
-      }
-
-      info.set(prop, { retrieved_value, provided_value, available_values, was_valid, is_same, updated: false })
-    }
-
-    return info
+  // #region THEME ATTRIBUTES - setter --------------------------------------------------------------
+  function set_TAs(provided_values: ReturnType<typeof get_SVs>): Set_TAs {
+    return {}
   }
   // #endregion -------------------------------------------------------------------------------------
   // #endregion -------------------------------------------------------------------------------------

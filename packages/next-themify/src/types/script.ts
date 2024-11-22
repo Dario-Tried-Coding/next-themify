@@ -49,35 +49,22 @@ export type Set_SVs = {
       new: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
       updated_value: UndefinedOr<string>
       was_provided: boolean
+      was_same: boolean
       is_fallback: UndefinedOr<boolean>
       got_updated: UndefinedOr<boolean>
       available_values: ReturnType<Available_Values['get']>
       default_value: ReturnType<Default_Values['get']>
     }
   >
-  updated_storage: boolean
+  executed_update: boolean
   old_values: Map<string, Nullable<string>>
   provided_values: Map<string, string>
   updated_values: Map<string, string>
 }
 
-export type TA_Sanitization = {
-  results: { prop: Nullable<string>; is_handled: boolean; value: Nullable<string>; valid: boolean }
-  available_values: UndefinedOr<Set<string>>
-  default_value: UndefinedOr<string>
-  handled_props: Handled_Props
-} & ({ valid: true; sanitized_value: string } | { valid: false; fallback_value: UndefinedOr<string> })
-export type Set_TAs = Map<
-  Prop,
-  {
-    retrieved_value: Nullable<string>
-    provided_value: string
-    available_values: NonNullable<ReturnType<Available_Values['get']>>
-    was_valid: boolean
-    is_same: boolean
-    updated: boolean
-  }
->
+export type Set_TAs = {
+
+}
 
 export type SM_Validation = {
   results: { is_handled: boolean; value: Nullable<string>; valid: boolean }
