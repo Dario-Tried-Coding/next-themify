@@ -4,10 +4,10 @@ import { createContext, PropsWithChildren, useContext } from 'react'
 import { COLOR_SCHEMES, CONFIG_SK, MODE_SK, MODES, STRATS } from './constants'
 import { script } from './script'
 import { Config, Keys } from './types'
-import { Storage_Values, Script_Params } from './types/script'
+import { Handled_Values, Script_Params } from './types/script'
 
 // CONTEXT
-interface Context extends Storage_Values {}
+interface Context extends Handled_Values {}
 const Context = createContext<Context | null>(null)
 
 // THEME PROVIDER
