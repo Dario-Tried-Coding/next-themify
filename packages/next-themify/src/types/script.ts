@@ -54,6 +54,7 @@ export type HVs_Update = {
       new: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
       updated_value: UndefinedOr<string>
       was_provided: boolean
+      is_same: boolean
       was_same: boolean
       is_fallback: UndefinedOr<boolean>
       got_updated: UndefinedOr<boolean>

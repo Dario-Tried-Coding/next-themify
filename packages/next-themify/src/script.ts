@@ -121,8 +121,9 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const new_value = provided_values.get(prop)
       const got_updated = !old_valid || (old_valid && !new_value && old_value !== default_value)
       const was_same = !old_value
+      const is_same = old_value === default_value
 
-      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, is_same, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
       handled_values.set(prop, default_value)
       if (got_updated) updated_values.set(prop, default_value)
     }
@@ -131,11 +132,13 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     for (const [prop, value] of provided_values) {
       const old_value = curr_values.get(prop)?.value
       const old_valid = curr_values.get(prop)?.is_valid
-      const was_same = old_value === value
 
       // If not handled, just record analysis
       if (!is_handled_prop(prop)) {
-        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, was_same, updated_value: undefined, got_updated: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
+        const was_same = old_value === value
+        const is_same = !old_value
+        const got_updated = curr_values.has(prop)
+        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, is_same, was_same, updated_value: undefined, got_updated, is_fallback: undefined, available_values: undefined, default_value: undefined })
         continue
       }
 
@@ -145,7 +148,9 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       // If not valid value, fallback to default value
       if (!is_available_value(prop, value)) {
         const got_updated = !old_valid || (old_valid && old_value !== default_value)
-        values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+        const was_same = old_value === value
+        const is_same = old_value === default_value
+        values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, was_same, is_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
         handled_values.set(prop, default_value)
         if (got_updated) updated_values.set(prop, default_value)
         continue
@@ -153,13 +158,15 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
 
       const got_updated = !old_valid || (old_valid && old_value !== value)
       const is_fallback = value === default_value
+      const was_same = old_value === value
+      const is_same = old_value === value
 
       // If valid value, use that for update
-      values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, was_same, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
+      values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, is_same, was_same, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
       handled_values.set(prop, value)
       if (got_updated) updated_values.set(prop, value)
     }
-
+    
     const executed_update = Array.from(values.values()).some((i) => i.got_updated)
     if (executed_update) setter(handled_values)
 
@@ -247,9 +254,9 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   // #region INITIALIZATION -------------------------------------------------------------------------
   function init() {
     const retrieved_values = retrieve_SVs()
-    update_SVs(retrieved_values)
+    console.log(update_SVs(retrieved_values))
     update_TAs(retrieved_values)
-    console.log(update_SM(retrieved_values.get('mode')))
+    update_SM(retrieved_values.get('mode'))
   }
   // #endregion -------------------------------------------------------------------------------------
 
