@@ -66,3 +66,25 @@ export type HVs_Update = {
   provided_values: Map<string, string>
   updated_values: Map<string, string>
 }
+
+export type SM_Sanitization = {
+  is_handled: boolean
+  value: Nullable<string>
+  is_valid: UndefinedOr<boolean>
+  sanitized_value: UndefinedOr<string>
+  is_fallback: UndefinedOr<boolean>
+  available_values: ReturnType<Available_Values['get']>
+  default_value: ReturnType<Default_Values['get']>
+}
+export type SM_Update = {
+  is_handled: boolean
+  old: { value: Nullable<string>, was_valid: UndefinedOr<boolean> }
+  new: { value: Nullable<string>, was_valid: UndefinedOr<boolean> }
+  updated_value: UndefinedOr<string>
+  was_same: boolean
+  is_same: boolean
+  is_fallback: UndefinedOr<boolean>
+  got_updated: UndefinedOr<boolean>
+  available_values: ReturnType<Available_Values['get']>
+  default_value: ReturnType<Default_Values['get']>
+}

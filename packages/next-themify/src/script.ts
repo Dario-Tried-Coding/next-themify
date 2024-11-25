@@ -1,4 +1,4 @@
-import { HVs_Sanitization, HVs_Update, Script_Params } from './types/script'
+import { HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
 import { Nullable } from './types/utils'
 
 export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -183,12 +183,12 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   function retrieve_TAs() {
     const retrieved_TAs: Map<string, string> = new Map()
 
-    handled_props.forEach(prop => {
+    handled_props.forEach((prop) => {
       const name = `data-${prop}`
       const value = html.getAttribute(name)
       if (value) retrieved_TAs.set(prop, value)
     })
-    
+
     return retrieved_TAs
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -204,11 +204,52 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     return update_HVs({ provided_values, current_values, setter })
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE MODE - retriever ---------------------------------------------------------------
+  function retrieve_SM() {
+    return localStorage.getItem(mode_SK)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE MODE - sanitizer ---------------------------------------------------------------
+  function sanitize_SM(value: Nullable<string>): SM_Sanitization {
+    if (!config.mode) return { is_handled: false, value: undefined, is_valid: undefined, sanitized_value: undefined, default_value: undefined, is_fallback: undefined, available_values: undefined }
+
+    const available_mode_values = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
+    const default_value = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
+
+    if (!value) return { is_handled: true, value: undefined, is_valid: undefined, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
+    if (!available_mode_values.has(value)) return { is_handled: true, value, is_valid: false, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
+
+    return { is_handled: true, value, is_valid: true, sanitized_value: value, default_value, is_fallback: false, available_values: available_mode_values }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region STORAGE MODE - updater -----------------------------------------------------------------
+  function update_SM(value: Nullable<string>): SM_Update {
+    const { value: old_value, is_valid: is_old_valid, is_handled: is_old_handled } = sanitize_SM(retrieve_SM())
+    const { value: new_value, is_valid: is_new_valid, is_handled: is_new_handled } = sanitize_SM(value)
+
+    if (!is_old_handled || !is_new_handled) return { is_handled: false, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: is_new_valid }, updated_value: undefined, got_updated: undefined, was_same: old_value === new_value, is_same: !old_value, default_value: undefined, is_fallback: undefined, available_values: undefined }
+
+    const available_mode_values = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
+    const default_value = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
+
+    if (!is_new_valid) {
+      const got_updated = !is_old_valid || (is_old_valid && old_value !== default_value)
+      if (got_updated) localStorage.setItem(mode_SK, default_value)
+      return { is_handled: true, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: false }, updated_value: default_value, got_updated, was_same: old_value === new_value, is_same: old_value === default_value, default_value, is_fallback: true, available_values: available_mode_values }
+    }
+
+    const valid_new_value = new_value as string
+    const got_updated = !is_old_valid || (is_old_valid && old_value !== new_value)
+    if (got_updated) localStorage.setItem(mode_SK, valid_new_value)
+    return { is_handled: true, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: true }, updated_value: valid_new_value, got_updated, was_same: old_value === valid_new_value, is_same: old_value === valid_new_value, default_value, is_fallback: valid_new_value === default_value, available_values: available_mode_values }
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
   function init() {
     const retrieved_values = retrieve_SVs()
     update_SVs(retrieved_values)
     update_TAs(retrieved_values)
+    console.log(update_SM(retrieved_values.get('mode')))
   }
   // #endregion -------------------------------------------------------------------------------------
 
