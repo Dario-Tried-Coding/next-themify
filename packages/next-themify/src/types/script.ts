@@ -1,5 +1,5 @@
 import { Config, Prop } from '.'
-import { COLOR_SCHEMES, Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
+import { Color_Scheme, COLOR_SCHEMES, Color_Scheme as CS, MODES, STATIC, STRATS } from '../constants'
 import { Nullable, UndefinedOr } from './utils'
 
 export type Script_Params = {
@@ -88,4 +88,21 @@ export type SM_Update = {
   got_updated: UndefinedOr<boolean>
   available_values: ReturnType<Available_Values['get']>
   default_value: ReturnType<Default_Values['get']>
+}
+
+export type CS_Sanitization = {
+  is_handled: boolean
+  mode: Nullable<string>
+  is_available_mode: UndefinedOr<boolean>
+  default_mode: UndefinedOr<string>
+  is_fallback_mode: UndefinedOr<boolean>
+  available_modes: Set<string>
+  value: Nullable<string>
+  is_valid: UndefinedOr<boolean>
+  sanitized_value: UndefinedOr<string>
+}
+export type CS_Update = {
+  is_handled: boolean
+  mode: string
+
 }

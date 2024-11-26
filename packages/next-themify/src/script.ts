@@ -1,4 +1,5 @@
-import { HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
+import { Color_Scheme } from './constants'
+import { CS_Sanitization, HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
 import { Nullable } from './types/utils'
 
 export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -7,6 +8,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   const handled_props = get_handled_props()
   const available_values = get_available_values()
   const default_values = get_default_values()
+  const color_schemes = get_color_schemes()
 
   // #region HELPERS --------------------------------------------------------------------------------
   function parse_JsonToMappedValues(string: Nullable<string>): Map<string, string> {
@@ -78,6 +80,24 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   function is_default_value(prop: string, value: Nullable<string>) {
     if (!value) return false
     return default_values.get(prop) === value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS - color schemes ------------------------------------------------------------------
+  function get_color_schemes() {
+    const color_schemes: Map<string, Color_Scheme> = new Map()
+    if (config.mode?.strategy === STRATS.mono) color_schemes.set(config.mode.key, config.mode.colorScheme)
+    else if (config.mode?.strategy === STRATS.custom) config.mode.keys.forEach(({ key, colorScheme }) => color_schemes.set(key, colorScheme))
+    else if (config.mode?.strategy === STRATS.light_dark) {
+      Object.entries(config.mode.keys).forEach(([key, i]) => {
+        if (typeof i !== 'string') i.forEach(({ key, colorScheme }) => color_schemes.set(key, colorScheme))
+        else if (COLOR_SCHEMES.includes(key as Color_Scheme)) color_schemes.set(i, key as Color_Scheme)
+      })
+    }
+    return color_schemes
+  }
+  function get_color_scheme(mode: string) {
+    if (!config.mode) return undefined
+    return color_schemes.get(mode)
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region HANDLED VALUES - sanitizer ------------------------------------------------------------
@@ -166,7 +186,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       handled_values.set(prop, value)
       if (got_updated) updated_values.set(prop, value)
     }
-    
+
     const executed_update = Array.from(values.values()).some((i) => i.got_updated)
     if (executed_update) setter(handled_values)
 
@@ -251,12 +271,51 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     return { is_handled: true, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: true }, updated_value: valid_new_value, got_updated, was_same: old_value === valid_new_value, is_same: old_value === valid_new_value, default_value, is_fallback: valid_new_value === default_value, available_values: available_mode_values }
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region RESOLVED MODE - sanitizer --------------------------------------------------------------
+
+  // #endregion -------------------------------------------------------------------------------------
+  // #region COLOR SCHEME - retriever ---------------------------------------------------------------
+  function retrieve_CS() {
+    const value = html.style.colorScheme
+    return !value ? null : value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region COLOR SCHEME - sanitizer ---------------------------------------------------------------
+  function sanitize_CS({ mode, value }: { mode: Nullable<string>; value: Nullable<string> }): CS_Sanitization {
+    if (!config.mode) return { is_handled: false, mode, is_available_mode: undefined, default_mode: undefined, is_fallback_mode: undefined, value, is_valid: undefined, sanitized_value: undefined, available_modes: new Set() }
+
+    const available_modes = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
+    const default_mode = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
+    const default_CS = color_schemes.get(default_mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>
+
+    if (!mode) return {is_handled: true, mode, is_available_mode: undefined, default_mode, is_fallback_mode: true, value, is_valid: undefined, sanitized_value: default_CS, available_modes}
+    if (!available_modes.has(mode)) return {is_handled: true, mode, is_available_mode: false, default_mode, is_fallback_mode: true, value, is_valid: undefined, sanitized_value: default_CS, available_modes}
+
+    const valid_CS = color_schemes.get(mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>
+
+    if (!value) return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: undefined, sanitized_value: valid_CS, available_modes}
+    if (valid_CS !== value) return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: false, sanitized_value: valid_CS, available_modes}
+
+    return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: true, sanitized_value: value, available_modes}
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region COLOR SCHEME - updater -----------------------------------------------------------------
+  function update_CS(mode: Nullable<string>) {
+    const { is_handled } = sanitize_SM(mode)
+
+    if (!is_handled) {
+      // TODO: clean color scheme if present on page
+      return { is_handled: false }
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
   function init() {
     const retrieved_values = retrieve_SVs()
-    console.log(update_SVs(retrieved_values))
+    update_SVs(retrieved_values)
     update_TAs(retrieved_values)
     update_SM(retrieved_values.get('mode'))
+    // update_CS(retrieved_values.get('mode'))
   }
   // #endregion -------------------------------------------------------------------------------------
 
