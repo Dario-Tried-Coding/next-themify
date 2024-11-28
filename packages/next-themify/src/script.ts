@@ -1,6 +1,8 @@
 import { Color_Scheme } from './constants'
-import { CS_Sanitization, HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
+import { CS_Sanitization, CS_Update, HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
 import { Nullable } from './types/utils'
+
+// TODO: Check got_updated logic when removing something that shouldn't be there... (just a hint: I currently don't know if it shuould be a feature or not)
 
 export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
   const html = document.documentElement
@@ -107,22 +109,22 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
 
     for (const [prop, value] of prov_values) {
       if (!is_handled_prop(prop)) {
-        values.set(prop, { prop, was_provided: true, is_handled: false, value, is_valid: undefined, sanitized_value: undefined, is_fallback: undefined, available_values: undefined, default_value: undefined })
+        values.set(prop, { prop, was_provided: true, is_handled: false, value, is_available: undefined, sanitized_value: undefined, is_fallback: undefined, available_values: new Set(), default_value: undefined })
         continue
       }
 
       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
       const default_value = default_values.get(prop) as NonNullable<ReturnType<(typeof default_values)['get']>>
       if (!is_available_value(prop, value)) {
-        values.set(prop, { prop, was_provided: true, is_handled: true, value, is_valid: false, sanitized_value: default_value, is_fallback: true, available_values: available_prop_values, default_value })
+        values.set(prop, { prop, was_provided: true, is_handled: true, value, is_available: false, sanitized_value: default_value, is_fallback: true, available_values: available_prop_values, default_value })
         continue
       }
 
-      values.set(prop, { prop, was_provided: true, is_handled: true, value, is_valid: true, sanitized_value: value, is_fallback: false, available_values: available_prop_values, default_value })
+      values.set(prop, { prop, was_provided: true, is_handled: true, value, is_available: true, sanitized_value: value, is_fallback: false, available_values: available_prop_values, default_value })
     }
 
-    const are_all_valid = Array.from(values.values()).every((i) => i.is_valid)
-    return { handled_props, available_values, default_values, performed_on: prov_values, values, are_all_valid, missing_props }
+    const are_all_available = Array.from(values.values()).every((i) => i.is_available)
+    return { handled_props, available_values, default_values, performed_on: prov_values, values, are_all_available, missing_props }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region HANDLED VALUES - updater ---------------------------------------------------------------
@@ -137,13 +139,13 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     for (const [prop, default_value] of default_values) {
       const available_prop_values = available_values.get(prop) as NonNullable<ReturnType<(typeof available_values)['get']>>
       const old_value = curr_values.get(prop)?.value
-      const old_valid = curr_values.get(prop)?.is_valid
+      const old_available = curr_values.get(prop)?.is_available
       const new_value = provided_values.get(prop)
-      const got_updated = !old_valid || (old_valid && !new_value && old_value !== default_value)
+      const got_updated = !old_available || (old_available && !new_value && old_value !== default_value)
       const was_same = !old_value
       const is_same = old_value === default_value
 
-      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value: undefined, was_valid: undefined }, is_same, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+      values.set(prop, { prop, was_provided: false, is_handled: true, old: { value: old_value, was_available: old_available }, new: { value: undefined, was_available: undefined }, is_same, was_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
       handled_values.set(prop, default_value)
       if (got_updated) updated_values.set(prop, default_value)
     }
@@ -151,14 +153,14 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     // Prioritize provided values over default values to use for update
     for (const [prop, value] of provided_values) {
       const old_value = curr_values.get(prop)?.value
-      const old_valid = curr_values.get(prop)?.is_valid
+      const old_valid = curr_values.get(prop)?.is_available
 
       // If not handled, just record analysis
       if (!is_handled_prop(prop)) {
         const was_same = old_value === value
         const is_same = !old_value
         const got_updated = curr_values.has(prop)
-        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_valid: undefined }, new: { value, was_valid: undefined }, is_same, was_same, updated_value: undefined, got_updated, is_fallback: undefined, available_values: undefined, default_value: undefined })
+        values.set(prop, { prop, was_provided: true, is_handled: false, old: { value: old_value, was_available: undefined }, new: { value, was_available: undefined }, is_same, was_same, updated_value: undefined, got_updated, is_fallback: undefined, available_values: new Set(), default_value: undefined })
         continue
       }
 
@@ -170,7 +172,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
         const got_updated = !old_valid || (old_valid && old_value !== default_value)
         const was_same = old_value === value
         const is_same = old_value === default_value
-        values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: false }, was_same, is_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
+        values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_available: old_valid }, new: { value, was_available: false }, was_same, is_same, updated_value: default_value, got_updated, is_fallback: true, available_values: available_prop_values, default_value })
         handled_values.set(prop, default_value)
         if (got_updated) updated_values.set(prop, default_value)
         continue
@@ -182,7 +184,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const is_same = old_value === value
 
       // If valid value, use that for update
-      values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_valid: old_valid }, new: { value, was_valid: true }, is_same, was_same, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
+      values.set(prop, { prop: prop, was_provided: true, is_handled: true, old: { value: old_value, was_available: old_valid }, new: { value, was_available: true }, is_same, was_same, updated_value: value, is_fallback, got_updated, available_values: available_prop_values, default_value })
       handled_values.set(prop, value)
       if (got_updated) updated_values.set(prop, value)
     }
@@ -238,37 +240,33 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE MODE - sanitizer ---------------------------------------------------------------
   function sanitize_SM(value: Nullable<string>): SM_Sanitization {
-    if (!config.mode) return { is_handled: false, value: undefined, is_valid: undefined, sanitized_value: undefined, default_value: undefined, is_fallback: undefined, available_values: undefined }
+    if (!config.mode) return { is_handled: false, value: undefined, is_available: undefined, sanitized_value: undefined, default_value: undefined, is_fallback: undefined, available_values: new Set() }
 
     const available_mode_values = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
     const default_value = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
 
-    if (!value) return { is_handled: true, value: undefined, is_valid: undefined, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
-    if (!available_mode_values.has(value)) return { is_handled: true, value, is_valid: false, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
+    if (!value) return { is_handled: true, value: undefined, is_available: undefined, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
+    if (!available_mode_values.has(value)) return { is_handled: true, value, is_available: false, sanitized_value: default_value, default_value, is_fallback: true, available_values: available_mode_values }
 
-    return { is_handled: true, value, is_valid: true, sanitized_value: value, default_value, is_fallback: false, available_values: available_mode_values }
+    return { is_handled: true, value, is_available: true, sanitized_value: value, default_value, is_fallback: false, available_values: available_mode_values }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region STORAGE MODE - updater -----------------------------------------------------------------
   function update_SM(value: Nullable<string>): SM_Update {
-    const { value: old_value, is_valid: is_old_valid, is_handled: is_old_handled } = sanitize_SM(retrieve_SM())
-    const { value: new_value, is_valid: is_new_valid, is_handled: is_new_handled } = sanitize_SM(value)
+    const { value: old_value, is_available: is_old_valid, is_handled: is_old_handled, available_values, default_value } = sanitize_SM(retrieve_SM())
+    const { value: new_value, is_available: is_new_valid, is_handled: is_new_handled } = sanitize_SM(value)
 
-    if (!is_old_handled || !is_new_handled) return { is_handled: false, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: is_new_valid }, updated_value: undefined, got_updated: undefined, was_same: old_value === new_value, is_same: !old_value, default_value: undefined, is_fallback: undefined, available_values: undefined }
-
-    const available_mode_values = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
-    const default_value = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
+    if (!is_old_handled || !is_new_handled) return { is_handled: false, old: { value: old_value, was_available: is_old_valid }, new: { value: new_value, was_available: is_new_valid }, updated_value: undefined, got_updated: undefined, was_same: old_value === new_value, is_same: !old_value, default_value: undefined, is_fallback: undefined, available_values }
 
     if (!is_new_valid) {
       const got_updated = !is_old_valid || (is_old_valid && old_value !== default_value)
-      if (got_updated) localStorage.setItem(mode_SK, default_value)
-      return { is_handled: true, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: false }, updated_value: default_value, got_updated, was_same: old_value === new_value, is_same: old_value === default_value, default_value, is_fallback: true, available_values: available_mode_values }
+      if (got_updated) localStorage.setItem(mode_SK, default_value as NonNullable<typeof default_value>)
+      return { is_handled: true, old: { value: old_value, was_available: is_old_valid }, new: { value: new_value, was_available: false }, updated_value: default_value, got_updated, was_same: old_value === new_value, is_same: old_value === default_value, default_value, is_fallback: true, available_values }
     }
 
-    const valid_new_value = new_value as string
     const got_updated = !is_old_valid || (is_old_valid && old_value !== new_value)
-    if (got_updated) localStorage.setItem(mode_SK, valid_new_value)
-    return { is_handled: true, old: { value: old_value, was_valid: is_old_valid }, new: { value: new_value, was_valid: true }, updated_value: valid_new_value, got_updated, was_same: old_value === valid_new_value, is_same: old_value === valid_new_value, default_value, is_fallback: valid_new_value === default_value, available_values: available_mode_values }
+    if (got_updated) localStorage.setItem(mode_SK, new_value as NonNullable<typeof new_value>)
+    return { is_handled: true, old: { value: old_value, was_available: is_old_valid }, new: { value: new_value, was_available: true }, updated_value: new_value as NonNullable<typeof new_value>, got_updated, was_same: old_value === new_value, is_same: old_value === new_value, default_value, is_fallback: new_value === default_value, available_values }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region RESOLVED MODE - sanitizer --------------------------------------------------------------
@@ -282,31 +280,25 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   // #endregion -------------------------------------------------------------------------------------
   // #region COLOR SCHEME - sanitizer ---------------------------------------------------------------
   function sanitize_CS({ mode, value }: { mode: Nullable<string>; value: Nullable<string> }): CS_Sanitization {
-    if (!config.mode) return { is_handled: false, mode, is_available_mode: undefined, default_mode: undefined, is_fallback_mode: undefined, value, is_valid: undefined, sanitized_value: undefined, available_modes: new Set() }
+    if (!mode) return { is_handled: false, mode, value, correct_value: undefined, is_correct: undefined }
 
-    const available_modes = available_values.get('mode') as NonNullable<ReturnType<(typeof available_values)['get']>>
-    const default_mode = default_values.get('mode') as NonNullable<ReturnType<(typeof default_values)['get']>>
-    const default_CS = color_schemes.get(default_mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>
+    const correct_value = color_schemes.get(mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>
 
-    if (!mode) return {is_handled: true, mode, is_available_mode: undefined, default_mode, is_fallback_mode: true, value, is_valid: undefined, sanitized_value: default_CS, available_modes}
-    if (!available_modes.has(mode)) return {is_handled: true, mode, is_available_mode: false, default_mode, is_fallback_mode: true, value, is_valid: undefined, sanitized_value: default_CS, available_modes}
-
-    const valid_CS = color_schemes.get(mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>
-
-    if (!value) return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: undefined, sanitized_value: valid_CS, available_modes}
-    if (valid_CS !== value) return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: false, sanitized_value: valid_CS, available_modes}
-
-    return {is_handled: true, mode, is_available_mode: true, default_mode, is_fallback_mode: false, value, is_valid: true, sanitized_value: value, available_modes}
+    if (!value) return { is_handled: true, mode, value, correct_value, is_correct: undefined }
+    if (value !== correct_value) return { is_handled: true, mode, value, correct_value, is_correct: false }
+    return { is_handled: true, mode, value, correct_value, is_correct: true }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region COLOR SCHEME - updater -----------------------------------------------------------------
-  function update_CS(mode: Nullable<string>) {
-    const { is_handled } = sanitize_SM(mode)
+  function update_CS(mode: Nullable<string>): CS_Update {
+    const current_CS = retrieve_CS()
+    const { is_handled, value: old_value, is_correct: was_correct, correct_value } = sanitize_CS({ mode, value: current_CS })
 
-    if (!is_handled) {
-      // TODO: clean color scheme if present on page
-      return { is_handled: false }
-    }
+    if (!is_handled) return { is_handled: false, mode, old_value: { value: old_value, was_correct }, correct_value: undefined, was_same: !old_value, got_updated: undefined }
+    if (old_value === correct_value) return { is_handled: true, mode, old_value: { value: old_value, was_correct }, correct_value, was_same: true, got_updated: false }
+
+    html.style.colorScheme = correct_value as NonNullable<typeof correct_value>
+    return { is_handled: true, mode, old_value: { value: old_value, was_correct }, correct_value, was_same: false, got_updated: true }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
@@ -314,8 +306,8 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     const retrieved_values = retrieve_SVs()
     update_SVs(retrieved_values)
     update_TAs(retrieved_values)
-    update_SM(retrieved_values.get('mode'))
-    // update_CS(retrieved_values.get('mode'))
+    const { updated_value: updated_mode } = update_SM(retrieved_values.get('mode'))
+    console.log(update_CS(updated_mode))
   }
   // #endregion -------------------------------------------------------------------------------------
 

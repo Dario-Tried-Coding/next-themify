@@ -24,7 +24,7 @@ export type HVs_Sanitization = {
   available_values: Map<string, Set<string>>
   default_values: Map<string, string>
   performed_on: Map<string, string>
-  are_all_valid: boolean
+  are_all_available: boolean
   missing_props: Set<string>
   values: Map<
     string,
@@ -32,11 +32,11 @@ export type HVs_Sanitization = {
       prop: string
       is_handled: boolean
       value: string
-      is_valid: UndefinedOr<boolean>
+      is_available: UndefinedOr<boolean>
       sanitized_value: UndefinedOr<string>
       is_fallback: UndefinedOr<boolean>
       was_provided: UndefinedOr<boolean>
-      available_values: ReturnType<Available_Values['get']>
+      available_values: NonNullable<ReturnType<Available_Values['get']>>
       default_value: ReturnType<Default_Values['get']>
     }
   >
@@ -50,15 +50,15 @@ export type HVs_Update = {
     {
       prop: string
       is_handled: boolean
-      old: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
-      new: { value: Nullable<string>; was_valid: UndefinedOr<boolean> }
+      old: { value: Nullable<string>; was_available: UndefinedOr<boolean> }
+      new: { value: Nullable<string>; was_available: UndefinedOr<boolean> }
       updated_value: UndefinedOr<string>
       was_provided: boolean
       is_same: boolean
       was_same: boolean
       is_fallback: UndefinedOr<boolean>
       got_updated: UndefinedOr<boolean>
-      available_values: ReturnType<Available_Values['get']>
+      available_values: NonNullable<ReturnType<Available_Values['get']>>
       default_value: ReturnType<Default_Values['get']>
     }
   >
@@ -71,38 +71,37 @@ export type HVs_Update = {
 export type SM_Sanitization = {
   is_handled: boolean
   value: Nullable<string>
-  is_valid: UndefinedOr<boolean>
+  is_available: UndefinedOr<boolean>
   sanitized_value: UndefinedOr<string>
   is_fallback: UndefinedOr<boolean>
-  available_values: ReturnType<Available_Values['get']>
+  available_values: NonNullable<ReturnType<Available_Values['get']>>
   default_value: ReturnType<Default_Values['get']>
 }
 export type SM_Update = {
   is_handled: boolean
-  old: { value: Nullable<string>, was_valid: UndefinedOr<boolean> }
-  new: { value: Nullable<string>, was_valid: UndefinedOr<boolean> }
+  old: { value: Nullable<string>, was_available: UndefinedOr<boolean> }
+  new: { value: Nullable<string>, was_available: UndefinedOr<boolean> }
   updated_value: UndefinedOr<string>
   was_same: boolean
   is_same: boolean
   is_fallback: UndefinedOr<boolean>
   got_updated: UndefinedOr<boolean>
-  available_values: ReturnType<Available_Values['get']>
+  available_values: NonNullable<ReturnType<Available_Values['get']>>
   default_value: ReturnType<Default_Values['get']>
 }
 
 export type CS_Sanitization = {
   is_handled: boolean
   mode: Nullable<string>
-  is_available_mode: UndefinedOr<boolean>
-  default_mode: UndefinedOr<string>
-  is_fallback_mode: UndefinedOr<boolean>
-  available_modes: Set<string>
   value: Nullable<string>
-  is_valid: UndefinedOr<boolean>
-  sanitized_value: UndefinedOr<string>
+  correct_value: UndefinedOr<string>
+  is_correct: UndefinedOr<boolean>
 }
 export type CS_Update = {
   is_handled: boolean
-  mode: string
-
+  mode: Nullable<string>
+  old_value: { value: Nullable<string>, was_correct: UndefinedOr<boolean> }
+  correct_value: UndefinedOr<string>
+  was_same: UndefinedOr<boolean>
+  got_updated: UndefinedOr<boolean>
 }
