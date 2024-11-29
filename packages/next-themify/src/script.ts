@@ -105,45 +105,104 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region HV - sanitize --------------------------------------------------------------------------
-  function sanitize_HVs(prov_values: Map<string, string>): HVs_Sanitization {
-    const values: HVs_Sanitization['values'] = new Map()
+  function sanitize_HVs(values: Map<string, string>, opts?: { fallback_values?: Map<string, string> }): HVs_Sanitization {
+    const processed: HVs_Sanitization['values']['processed'] = new Map()
 
-    for (const [prop, value] of prov_values) {
+    for (const [prop, value] of values) {
       if (!is_handled_prop(prop)) {
-        values.set(prop, { prop: {prop, is_handled: false}, value: {value, is_available: undefined, default: undefined, sanitized: undefined, is_default: undefined, is_fallback: undefined}, available_values: new Set() })
+        processed.set(prop, { prop: { prop, is_handled: false }, value: { value, is_available: undefined, default: undefined, sanitized: undefined, is_default: undefined, is_fallback: undefined }, available_values: new Set() })
         continue
       }
 
       const available_values = get_prop_available_values(prop) as NonNullable<ReturnType<typeof get_prop_available_values>>
       const default_value = get_prop_default_value(prop) as NonNullable<ReturnType<typeof get_prop_default_value>>
-      
+      const fallback = opts?.fallback_values?.get(prop) ?? default_value
+
       if (!is_available_value(prop, value)) {
-        values.set(prop, { prop: {prop, is_handled: true}, value: {value, is_available: false, sanitized: default_value, default: default_value, is_default: true, is_fallback: true}, available_values })
+        processed.set(prop, { prop: { prop, is_handled: true }, value: { value, is_available: false, default: default_value, sanitized: fallback, is_fallback: true, is_default: is_default_value(prop, fallback) }, available_values })
         continue
       }
 
-      values.set(prop, { prop: {prop, is_handled: true}, value: {value, is_available: true, sanitized: value, default: default_value, is_default: is_default_value(prop, value), is_fallback: false}, available_values })
+      processed.set(prop, { prop: { prop, is_handled: true }, value: { value, is_available: true, default: default_value, sanitized: value, is_fallback: false, is_default: is_default_value(prop, value) }, available_values })
     }
 
-    const missing_values = new Map(Array.from(default_values.entries()).filter(([prop]) => !values.has(prop)))
-    const are_proper_values = missing_values.size === 0 && Array.from(values.values()).every((i) => i.prop.is_handled && i.value.is_available)
-    return { performed_on: prov_values, values, are_proper_values, missing_values, ctx: { handled_props, available_values, default_values } }
+    const missing = new Map(
+      Array.from(default_values)
+        .filter(([prop]) => !values.has(prop))
+        .map(([prop]) => [prop, opts?.fallback_values?.get(prop) ?? default_values.get(prop)] as [typeof prop, NonNullable<ReturnType<(typeof default_values)['get']>>])
+    )
+    const handled = new Map([
+      ...Array.from(processed)
+        .filter(([prop, info]) => info.prop.is_handled)
+        .map(([prop, info]) => [prop, info.value.sanitized] as [string, NonNullable<typeof info.value.sanitized>]),
+      ...missing,
+    ])
+    const not_handled = new Map(
+      Array.from(processed)
+        .filter(([prop, info]) => !info.prop.is_handled)
+        .map(([prop, info]) => [prop, info.value.value])
+    )
+
+    const are_proper_values = missing.size === 0 && Array.from(processed.values()).every((i) => i.prop.is_handled && i.value.is_available)
+    return { performed_on: values, values: { processed, missing, handled, not_handled }, are_proper_values, ctx: { handled_props, available_values, default_values } }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region HV - update ----------------------------------------------------------------------------
   function update_HVs({ provided_values, current_values, setter }: { provided_values: Map<string, string>; current_values: Map<string, string>; setter: (Handled_Values: Map<string, string>) => void }): HVs_Update {
-    const {values: prov_values, missing_values} = sanitize_HVs(provided_values)
     const { values: curr_values } = sanitize_HVs(current_values)
-    
-    const values: HVs_Update['values'] = new Map()
-    prov_values.forEach(({ prop: {prop, is_handled}, value: prov_value }) => {
-      const curr_value = curr_values.get(prop)?.value
+    const { values: prov_values, ctx } = sanitize_HVs(provided_values, { fallback_values: curr_values.handled })
 
-      let got_updated: UndefinedOr<boolean> = undefined
-      if (!is_handled) {
-        if (!!curr_value?.value) got_updated = true
-      } else if (!curr_value?.is_available || (curr_value.is_available && curr_value.value !== prov_value.sanitized)) got_updated = true
+    const values: HVs_Update['values'] = new Map()
+    prov_values.handled.forEach((value, prop) => {
+      const curr = curr_values.processed.get(prop)?.value
+      const prov = prov_values.processed.get(prop)?.value
+
+      const available_values = get_prop_available_values(prop) as NonNullable<ReturnType<typeof get_prop_available_values>>
+      const default_value = get_prop_default_value(prop) as NonNullable<ReturnType<typeof get_prop_default_value>>
+      const got_updated = !curr || (!!curr && !curr.is_available) || (!!curr && curr.is_available && curr.value !== value)
+
+      values.set(prop, {
+        prop: { prop, is_handled: true, is_provided: !!prov },
+        value: {
+          current: { value: curr?.value, is_available: curr?.is_available },
+          provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
+          new: { value, is_default: is_default_value(prop, value), is_fallback: !prov || prov.is_fallback, is_same: curr?.value === value, has_changed: got_updated },
+          default: default_value,
+        },
+        available_values,
+      })
     })
+
+    prov_values.not_handled.forEach((value, prop) => {
+      const curr = curr_values.processed.get(prop)?.value
+      const prov = prov_values.processed.get(prop)?.value
+
+      const got_deleted = !!curr
+
+      values.set(prop, {
+        prop: { prop, is_handled: false, is_provided: !!prov },
+        value: {
+          current: { value: curr?.value, is_available: curr?.is_available },
+          provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
+          new: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
+          default: undefined,
+        },
+        available_values: new Set(),
+      })
+    })
+
+    // TODO: check for non-handled props in the current values
+
+    const performed_update = Array.from(values).some(([prop, info]) => info.value.new.has_changed)
+    if (performed_update) setter(prov_values.handled)
+    return { performed_update, values, ctx }
   }
+  console.log(
+    update_HVs({
+      provided_values: new Map([['mode', 'light']]),
+      current_values: new Map([['color-scheme', 'prova']]),
+      setter: () => {},
+    })
+  )
   // #endregion -------------------------------------------------------------------------------------
 }

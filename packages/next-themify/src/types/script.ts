@@ -25,15 +25,19 @@ export type HVs_Sanitization = {
   }
   performed_on: Map<string, string>
   are_proper_values: boolean
-  missing_values: Map<string, string>
-  values: Map<
-    string,
-    {
-      prop: { prop: string; is_handled: boolean }
-      value: { value: string; is_available: UndefinedOr<boolean>; sanitized: UndefinedOr<string>; is_fallback: UndefinedOr<boolean>; default: UndefinedOr<string>; is_default: UndefinedOr<boolean> }
-      available_values: NonNullable<ReturnType<Available_Values['get']>>
-    }
-  >
+  values: {
+    processed: Map<
+      string,
+      {
+        prop: { prop: string; is_handled: boolean }
+        value: { value: string; is_available: UndefinedOr<boolean>; sanitized: UndefinedOr<string>; is_fallback: UndefinedOr<boolean>; default: UndefinedOr<string>; is_default: UndefinedOr<boolean> }
+        available_values: NonNullable<ReturnType<Available_Values['get']>>
+      }
+    >
+    missing: Map<string, string>
+    handled: Map<string, string>
+    not_handled: Map<string, string>
+  }
 }
 export type HVs_Update = {
   ctx: {
@@ -44,14 +48,14 @@ export type HVs_Update = {
   values: Map<
     string,
     {
-      prop: string
-      is_handled: boolean
-      current: { value: Nullable<string>; was_available: UndefinedOr<boolean> }
-      provided: { value: Nullable<string>; was_available: UndefinedOr<boolean>; was_same: UndefinedOr<boolean> }
-      updated: { value: UndefinedOr<string>; got_updated: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
-      was_provided: boolean
+      prop: { prop: string; is_handled: boolean; is_provided: boolean }
+      value: {
+        current: { value: Nullable<string>; is_available: UndefinedOr<boolean> }
+        provided: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
+        new: { value: UndefinedOr<string>; is_same: UndefinedOr<boolean>; has_changed: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+        default: ReturnType<Default_Values['get']>
+      }
       available_values: NonNullable<ReturnType<Available_Values['get']>>
-      default_value: ReturnType<Default_Values['get']>
     }
   >
   performed_update: boolean
