@@ -1,6 +1,6 @@
 import { Color_Scheme } from './constants'
-import { HVs_Sanitization, HVs_Update, Script_Params } from './types/script'
-import { Nullable } from './types/utils'
+import { CS_Sanitization, CS_Update, HVs_Sanitization, HVs_Update, Script_Params, SM_Sanitization, SM_Update } from './types/script'
+import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
   const html = document.documentElement
@@ -110,161 +110,40 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
 
     for (const [prop, value] of prov_values) {
       if (!is_handled_prop(prop)) {
-        values.set(prop, { prop, is_handled_prop: false, value, is_available_value: undefined, default_value: undefined, sanitized_value: undefined, is_default_value: undefined, is_fallback_value: undefined, available_values: new Set() })
+        values.set(prop, { prop: {prop, is_handled: false}, value: {value, is_available: undefined, default: undefined, sanitized: undefined, is_default: undefined, is_fallback: undefined}, available_values: new Set() })
         continue
       }
 
       const available_values = get_prop_available_values(prop) as NonNullable<ReturnType<typeof get_prop_available_values>>
       const default_value = get_prop_default_value(prop) as NonNullable<ReturnType<typeof get_prop_default_value>>
+      
       if (!is_available_value(prop, value)) {
-        values.set(prop, { prop, is_handled_prop: true, value, is_available_value: false, sanitized_value: default_value, default_value, is_default_value: true, is_fallback_value: true, available_values })
+        values.set(prop, { prop: {prop, is_handled: true}, value: {value, is_available: false, sanitized: default_value, default: default_value, is_default: true, is_fallback: true}, available_values })
         continue
       }
 
-      values.set(prop, { prop, is_handled_prop: true, value, is_available_value: true, sanitized_value: value, default_value, is_default_value: is_default_value(prop, value), is_fallback_value: false, available_values })
+      values.set(prop, { prop: {prop, is_handled: true}, value: {value, is_available: true, sanitized: value, default: default_value, is_default: is_default_value(prop, value), is_fallback: false}, available_values })
     }
 
     const missing_values = new Map(Array.from(default_values.entries()).filter(([prop]) => !values.has(prop)))
-    const are_proper_values = missing_values.size === 0 && Array.from(values.values()).every((i) => i.is_handled_prop && i.is_available_value)
+    const are_proper_values = missing_values.size === 0 && Array.from(values.values()).every((i) => i.prop.is_handled && i.value.is_available)
     return { performed_on: prov_values, values, are_proper_values, missing_values, ctx: { handled_props, available_values, default_values } }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region HV - update ----------------------------------------------------------------------------
   function update_HVs({ provided_values, current_values, setter }: { provided_values: Map<string, string>; current_values: Map<string, string>; setter: (Handled_Values: Map<string, string>) => void }): HVs_Update {
+    const {values: prov_values, missing_values} = sanitize_HVs(provided_values)
     const { values: curr_values } = sanitize_HVs(current_values)
-    const { values: prov_values, missing_values } = sanitize_HVs(provided_values)
-
+    
     const values: HVs_Update['values'] = new Map()
-    prov_values.forEach(({ prop, is_handled_prop, value: prov_value, is_available_value: was_prov_available, default_value, available_values }) => {
+    prov_values.forEach(({ prop: {prop, is_handled}, value: prov_value }) => {
       const curr_value = curr_values.get(prop)?.value
-      const was_curr_available = curr_values.get(prop)?.is_available_value
 
-      if (!is_handled_prop) {
-        const got_updated = !!curr_value
-        values.set(prop, {
-          prop,
-          was_provided: true,
-          is_handled: false,
-          current: { value: curr_value, was_available: was_curr_available },
-          provided: { value: prov_value, was_available: was_prov_available, was_same: curr_value === prov_value },
-          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr_value },
-          default_value: undefined,
-          available_values: new Set(),
-          got_updated,
-        })
-        return
-      }
-
-      if (!was_prov_available) {
-        const got_updated = !curr_value || (!!curr_value && !was_curr_available) || (!!curr_value && was_curr_available && curr_value !== default_value)
-        values.set(prop, {
-          prop,
-          was_provided: true,
-          is_handled: true,
-          current: { value: curr_value, was_available: was_curr_available },
-          provided: { value: prov_value, was_available: was_prov_available, was_same: curr_value === prov_value },
-          updated: { value: default_value, is_default: true, is_fallback: true, is_same: (!curr_value && !default_value) || curr_value === default_value },
-          default_value,
-          available_values,
-          got_updated,
-        })
-        return
-      }
-
-      const got_updated = !curr_value || (!!curr_value && !was_curr_available) || (!!curr_value && was_curr_available && curr_value !== prov_value)
-      values.set(prop, {
-        prop,
-        was_provided: true,
-        is_handled: true,
-        current: { value: curr_value, was_available: was_curr_available },
-        provided: { value: prov_value, was_available: was_prov_available, was_same: curr_value === prov_value },
-        updated: { value: prov_value, is_default: is_default_value(prop, prov_value), is_fallback: false, is_same: curr_value === prov_value },
-        default_value,
-        available_values,
-        got_updated,
-      })
+      let got_updated: UndefinedOr<boolean> = undefined
+      if (!is_handled) {
+        if (!!curr_value?.value) got_updated = true
+      } else if (!curr_value?.is_available || (curr_value.is_available && curr_value.value !== prov_value.sanitized)) got_updated = true
     })
-
-    Array.from(missing_values.entries()).forEach(([prop, default_value]) => {
-      const curr_value = curr_values.get(prop)?.value
-      const was_curr_available = curr_values.get(prop)?.is_available_value
-
-      const got_updated = !curr_value || (!!curr_value && !was_curr_available) || (!!curr_value && was_curr_available && curr_value !== default_value)
-      values.set(prop, {
-        prop,
-        was_provided: false,
-        is_handled: true,
-        current: { value: curr_value, was_available: was_curr_available },
-        provided: { value: undefined, was_available: undefined, was_same: !curr_value },
-        updated: { value: default_value, is_default: true, is_fallback: true, is_same: curr_value === default_value },
-        default_value,
-        available_values: get_prop_available_values(prop) as NonNullable<ReturnType<typeof get_prop_available_values>>,
-        got_updated,
-      })
-    })
-
-    const performed_update = Array.from(values.values()).some(({ got_updated }) => got_updated)
-    const handled_values = new Map(
-      Array.from(values.entries())
-        .filter(([prop, { is_handled }]) => is_handled)
-        .map(
-          ([
-            prop,
-            {
-              updated: { value },
-            },
-          ]) => [prop, value as NonNullable<typeof value>]
-        )
-    )
-    if (performed_update) setter(handled_values)
-    return { ctx: { handled_props, available_values, default_values }, values, performed_update }
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region SV - retrieve --------------------------------------------------------------------------
-  function retrieve_SVs() {
-    const storage_string = localStorage.getItem(config_SK)
-    return parse_JsonToMappedValues(storage_string)
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region SV - update ----------------------------------------------------------------------------
-  function update_SVs(provided_values: Map<string, string>) {
-    const current_values = retrieve_SVs()
-    const setter: Parameters<typeof update_HVs>[0]['setter'] = (handled_values) => localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(handled_values)))
-    return update_HVs({ provided_values, current_values, setter })
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region THEME ATTRIBUTES - retrieve ------------------------------------------------------------
-  function retrieve_TAs() {
-    const retrieved_TAs: Map<string, string> = new Map()
-
-    handled_props.forEach((prop) => {
-      const name = `data-${prop}`
-      const value = html.getAttribute(name)
-      if (value) retrieved_TAs.set(prop, value)
-    })
-
-    return retrieved_TAs
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region THEME ATTRIBUTES - update --------------------------------------------------------------
-  function update_TAs(provided_values: Map<string, string>) {
-    const current_values = retrieve_TAs()
-    const setter: Parameters<typeof update_HVs>[0]['setter'] = (handled_values) => {
-      for (const [prop, value] of handled_values) {
-        const name = `data-${prop}`
-        html.setAttribute(name, value)
-      }
-    }
-    return update_HVs({ provided_values, current_values, setter })
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region INITIALIZATION -------------------------------------------------------------------------
-  function init() {
-    const retrieved_values = retrieve_SVs()
-    update_SVs(retrieved_values)
-    update_TAs(retrieved_values)
-  }
-  // #endregion -------------------------------------------------------------------------------------
-
-  init()
 }
