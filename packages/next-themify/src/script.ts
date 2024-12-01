@@ -157,8 +157,7 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const curr = curr_values.processed.get(prop)?.value
       const prov = prov_values.processed.get(prop)?.value
 
-      const available_values = get_prop_available_values(prop) as NonNullable<ReturnType<typeof get_prop_available_values>>
-      const default_value = get_prop_default_value(prop) as NonNullable<ReturnType<typeof get_prop_default_value>>
+      const available_values = prov_values.processed.get(prop)?.available_values as NonNullable<ReturnType<(typeof prov_values)['processed']['get']>>['available_values']
       const got_updated = !curr || (!!curr && !curr.is_available) || (!!curr && curr.is_available && curr.value !== value)
 
       values.set(prop, {
@@ -166,8 +165,8 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
         value: {
           current: { value: curr?.value, is_available: curr?.is_available },
           provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
-          new: { value, is_default: is_default_value(prop, value), is_fallback: !prov || prov.is_fallback, is_same: curr?.value === value, has_changed: got_updated },
-          default: default_value,
+          updated: { value, is_default: is_default_value(prop, value), is_fallback: !prov || prov.is_fallback, is_same: curr?.value === value, has_changed: got_updated },
+          default: curr?.default,
         },
         available_values,
       })
@@ -176,7 +175,6 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     prov_values.not_handled.forEach((value, prop) => {
       const curr = curr_values.processed.get(prop)?.value
       const prov = prov_values.processed.get(prop)?.value
-
       const got_deleted = !!curr
 
       values.set(prop, {
@@ -184,25 +182,47 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
         value: {
           current: { value: curr?.value, is_available: curr?.is_available },
           provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
-          new: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
+          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
           default: undefined,
         },
         available_values: new Set(),
       })
     })
 
-    // TODO: check for non-handled props in the current values
+    curr_values.not_handled.forEach((value, prop) => {
+      const curr = curr_values.processed.get(prop)?.value
+      const prov = prov_values.processed.get(prop)?.value
+      const got_deleted = !!prov
 
-    const performed_update = Array.from(values).some(([prop, info]) => info.value.new.has_changed)
+      values.set(prop, {
+        prop: { prop, is_handled: false, is_provided: !!prov },
+        value: {
+          current: { value: curr?.value, is_available: curr?.is_available },
+          provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
+          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
+          default: undefined,
+        },
+        available_values: new Set(),
+      })
+    })
+
+    const performed_update = Array.from(values).some(([prop, info]) => info.value.updated.has_changed)
     if (performed_update) setter(prov_values.handled)
     return { performed_update, values, ctx }
   }
-  console.log(
-    update_HVs({
-      provided_values: new Map([['mode', 'light']]),
-      current_values: new Map([['color-scheme', 'prova']]),
-      setter: () => {},
-    })
-  )
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SV - retrieve --------------------------------------------------------------------------
+  function retrieve_SVs() {
+    const storage_string = localStorage.getItem(config_SK)
+    return parse_JsonToMappedValues(storage_string)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SV - update ----------------------------------------------------------------------------
+  function update_SVs(provided_values: Map<string, string>) {
+    const current_values = retrieve_SVs()
+    const setter: Parameters<typeof update_HVs>[0]['setter'] = (handled_values) => localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(handled_values)))
+    return update_HVs({ provided_values, current_values, setter })
+  }
+
   // #endregion -------------------------------------------------------------------------------------
 }

@@ -52,7 +52,7 @@ export type HVs_Update = {
       value: {
         current: { value: Nullable<string>; is_available: UndefinedOr<boolean> }
         provided: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
-        new: { value: UndefinedOr<string>; is_same: UndefinedOr<boolean>; has_changed: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+        updated: { value: UndefinedOr<string>; is_same: UndefinedOr<boolean>; has_changed: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
         default: ReturnType<Default_Values['get']>
       }
       available_values: NonNullable<ReturnType<Available_Values['get']>>
