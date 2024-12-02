@@ -1,5 +1,11 @@
 # @dariotriedcoding/next-themify
 
+## 0.0.4
+
+### Patch Changes
+
+- Script: lib initialization
+
 ## 0.0.3
 
 ### Patch Changes

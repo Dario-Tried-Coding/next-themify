@@ -158,55 +158,37 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
       const prov = prov_values.processed.get(prop)?.value
 
       const available_values = prov_values.processed.get(prop)?.available_values as NonNullable<ReturnType<(typeof prov_values)['processed']['get']>>['available_values']
-      const got_updated = !curr || (!!curr && !curr.is_available) || (!!curr && curr.is_available && curr.value !== value)
 
       values.set(prop, {
         prop: { prop, is_handled: true, is_provided: !!prov },
         value: {
           current: { value: curr?.value, is_available: curr?.is_available },
           provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
-          updated: { value, is_default: is_default_value(prop, value), is_fallback: !prov || prov.is_fallback, is_same: curr?.value === value, has_changed: got_updated },
+          updated: { value, is_default: is_default_value(prop, value), is_fallback: !prov || prov.is_fallback, is_same: curr?.value === value },
           default: curr?.default,
         },
         available_values,
       })
     })
 
-    prov_values.not_handled.forEach((value, prop) => {
+    const not_handled_values: Map<string, string> = new Map([...Array.from(prov_values.not_handled), ...Array.from(curr_values.not_handled)])
+    not_handled_values.forEach((value, prop) => {
       const curr = curr_values.processed.get(prop)?.value
       const prov = prov_values.processed.get(prop)?.value
-      const got_deleted = !!curr
 
       values.set(prop, {
         prop: { prop, is_handled: false, is_provided: !!prov },
         value: {
           current: { value: curr?.value, is_available: curr?.is_available },
           provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
-          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
+          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr },
           default: undefined,
         },
         available_values: new Set(),
       })
     })
 
-    curr_values.not_handled.forEach((value, prop) => {
-      const curr = curr_values.processed.get(prop)?.value
-      const prov = prov_values.processed.get(prop)?.value
-      const got_deleted = !!prov
-
-      values.set(prop, {
-        prop: { prop, is_handled: false, is_provided: !!prov },
-        value: {
-          current: { value: curr?.value, is_available: curr?.is_available },
-          provided: { value: prov?.value, is_available: prov?.is_available, is_default: is_default_value(prop, prov?.value), is_same: (!curr?.value && !prov?.value) || curr?.value === prov?.value },
-          updated: { value: undefined, is_default: undefined, is_fallback: undefined, is_same: !curr, has_changed: got_deleted },
-          default: undefined,
-        },
-        available_values: new Set(),
-      })
-    })
-
-    const performed_update = Array.from(values).some(([prop, info]) => info.value.updated.has_changed)
+    const performed_update = Array.from(values).some(([prop, info]) => !info.value.updated.is_same)
     if (performed_update) setter(prov_values.handled)
     return { performed_update, values, ctx }
   }
@@ -223,6 +205,160 @@ export function script({ config_SK, mode_SK, config, constants: { STRATS, MODES,
     const setter: Parameters<typeof update_HVs>[0]['setter'] = (handled_values) => localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(handled_values)))
     return update_HVs({ provided_values, current_values, setter })
   }
-
   // #endregion -------------------------------------------------------------------------------------
+  // #region TA - retrieve --------------------------------------------------------------------------
+  function retrieve_TAs() {
+    const retrieved_TAs: Map<string, string> = new Map()
+
+    handled_props.forEach((prop) => {
+      const name = `data-${prop}`
+      const value = html.getAttribute(name)
+      if (value) retrieved_TAs.set(prop, value)
+    })
+
+    return retrieved_TAs
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region TA - update ----------------------------------------------------------------------------
+  function update_TAs(provided_values: Map<string, string>) {
+    const current_values = retrieve_TAs()
+    const setter: Parameters<typeof update_HVs>[0]['setter'] = (handled_values) => {
+      for (const [prop, value] of handled_values) {
+        const name = `data-${prop}`
+        html.setAttribute(name, value)
+      }
+    }
+    return update_HVs({ provided_values, current_values, setter })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - retrieve --------------------------------------------------------------------------
+  function retrieve_SM() {
+    return localStorage.getItem(mode_SK)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - sanitize --------------------------------------------------------------------------
+  function sanitize_SM(provided_value: Nullable<string>, opts?: { fallback_value?: string }): SM_Sanitization {
+    if (!config.mode) return { is_handled: false, value: provided_value, is_available: undefined, sanitized_mode: undefined, is_fallback: undefined, is_default: undefined, is_system: undefined, available_modes: new Set(), default_mode: undefined }
+
+    const available_modes = available_values.get('mode') as NonNullable<ReturnType<typeof get_prop_available_values>>
+    const default_mode = get_prop_default_value('mode') as NonNullable<ReturnType<typeof get_prop_default_value>>
+    const fallback_mode = opts?.fallback_value ?? default_mode
+    const is_system = (mode: string) => config.mode?.strategy === STRATS.light_dark && config.mode.enableSystem && mode === config.mode.keys.system
+
+    if (!provided_value) return { is_handled: true, value: provided_value, is_available: undefined, sanitized_mode: fallback_mode, is_fallback: true, is_default: is_default_value('mode', fallback_mode), is_system: is_system(fallback_mode), available_modes, default_mode }
+    if (!available_modes.has(provided_value)) return { is_handled: true, value: provided_value, is_available: false, sanitized_mode: fallback_mode, is_fallback: true, is_default: is_default_value('mode', fallback_mode), is_system: is_system(fallback_mode), available_modes, default_mode }
+    return { is_handled: true, value: provided_value, is_available: true, sanitized_mode: provided_value, is_fallback: false, is_default: is_default_value('mode', provided_value), is_system: is_system(provided_value), available_modes, default_mode }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - update ----------------------------------------------------------------------------
+  function update_SM(provided_value: Nullable<string>): SM_Update {
+    const curr = sanitize_SM(retrieve_SM())
+    const prov = sanitize_SM(provided_value, { fallback_value: curr.sanitized_mode })
+
+    if (!curr.is_handled || !prov.is_handled) {
+      const must_delete = !!curr.value
+      if (must_delete) localStorage.removeItem(mode_SK)
+      return {
+        is_handled: false,
+        current: { value: curr.value, is_available: curr.is_available },
+        provided: { value: prov.value, is_available: prov.is_available, is_same: (!curr.value && !prov.value) || curr.value === prov.value, is_default: is_default_value('mode', prov.value) },
+        updated: { mode: undefined, is_default: undefined, is_fallback: undefined, is_same: !must_delete },
+        available_modes: curr.available_modes,
+        default_mode: curr.default_mode,
+        performed_update: must_delete,
+      }
+    }
+
+    const must_update = curr.value !== prov.sanitized_mode
+    if (must_update) localStorage.setItem(mode_SK, prov.sanitized_mode as NonNullable<typeof prov.sanitized_mode>)
+    return {
+      is_handled: true,
+      current: { value: curr.value, is_available: curr.is_available },
+      provided: { value: prov.value, is_available: prov.is_available, is_same: (!curr.value && !prov.value) || curr.value === prov.value, is_default: is_default_value('mode', prov.value) },
+      updated: { mode: prov.sanitized_mode, is_default: prov.is_default, is_fallback: prov.is_fallback, is_same: !must_update },
+      available_modes: curr.available_modes,
+      default_mode: curr.default_mode,
+      performed_update: must_update,
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - resolve ---------------------------------------------------------------------------
+  function resolve_CS(): UndefinedOr<Color_Scheme> {
+    if (!(config.mode && config.mode.strategy === STRATS.light_dark && config.mode.enableSystem)) return undefined
+    const supports_CSPref = window.matchMedia('(prefers-color-scheme').media !== 'not all'
+    const resolved_CS = supports_CSPref ? (window.matchMedia('(prefers-color-scheme').matches && window.matchMedia('(prefers-color-scheme: dark').matches ? 'dark' : 'light') : (color_schemes.get(config.mode.fallback) as NonNullable<ReturnType<(typeof color_schemes)['get']>>)
+    return resolved_CS
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - getter ----------------------------------------------------------------------------
+  function get_CS({ mode, is_system }: { mode: string; is_system: boolean }) {
+    if (!config.mode) return undefined
+    return is_system ? (resolve_CS() as NonNullable<ReturnType<typeof resolve_CS>>) : (color_schemes.get(mode) as NonNullable<ReturnType<(typeof color_schemes)['get']>>)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - retrieve --------------------------------------------------------------------------
+  function retrieve_CS() {
+    const value = html.style.colorScheme
+    return !value ? null : value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - sanitize --------------------------------------------------------------------------
+  function sanitize_CS({ mode, value }: { mode: Nullable<string>; value: Nullable<string> }, opts?: { fallback_mode?: string }): CS_Sanitization {
+    const { is_handled: is_mode_handled, ...SM_sanitization } = sanitize_SM(mode, { fallback_value: opts?.fallback_mode })
+
+    if (!is_mode_handled) return { is_mode_handled: false, mode: SM_sanitization, CS: { value, correct_CS: undefined, is_correct: undefined, is_resolved: undefined } }
+
+    const correct_CS = get_CS({
+      mode: SM_sanitization.sanitized_mode as NonNullable<typeof SM_sanitization.sanitized_mode>,
+      is_system: SM_sanitization.is_system as NonNullable<typeof SM_sanitization.is_system>,
+    })
+
+    if (!value) return { is_mode_handled: true, mode: SM_sanitization, CS: { value, correct_CS, is_correct: undefined, is_resolved: SM_sanitization.is_system } }
+
+    const is_correct = value === correct_CS
+    return { is_mode_handled: true, mode: SM_sanitization, CS: { value, correct_CS, is_correct, is_resolved: SM_sanitization.is_system } }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - update ----------------------------------------------------------------------------
+  function update_CS(prov_mode: Nullable<string>): CS_Update {
+    const { mode, CS: curr_CS, is_mode_handled } = sanitize_CS({ mode: prov_mode, value: retrieve_CS() })
+
+    if (!is_mode_handled) {
+      const must_delete = !!curr_CS.value
+      if (must_delete) html.style.removeProperty('color-scheme')
+      return { is_mode_handled: false, mode, current: { value: curr_CS.value, is_correct: curr_CS.is_correct, is_resolved: curr_CS.is_resolved }, updated: { CS: undefined, is_same: !must_delete, is_resolved: undefined }, correct_CS: undefined, performed_update: must_delete }
+    }
+
+    const correct_CS = get_CS({
+      mode: mode.sanitized_mode as NonNullable<typeof mode.sanitized_mode>,
+      is_system: mode.is_system as NonNullable<typeof mode.is_system>,
+    }) as NonNullable<ReturnType<typeof get_CS>>
+
+    const must_update = curr_CS.value !== correct_CS
+    if (must_update) html.style.colorScheme = correct_CS
+    return { is_mode_handled: true, mode, current: curr_CS, updated: { CS: correct_CS, is_same: !must_update, is_resolved: mode.is_system }, correct_CS, performed_update: must_update }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region MC - toggle ----------------------------------------------------------------------------
+  function toggle_MC(prov_mode: Nullable<string>) {
+    const { is_handled, sanitized_mode, is_system } = sanitize_SM(prov_mode)
+    if (!is_handled) return
+
+    const CS = get_CS({ mode: sanitized_mode as NonNullable<typeof sanitized_mode>, is_system: is_system as NonNullable<typeof is_system> }) as NonNullable<ReturnType<typeof get_CS>>
+    Object.values(COLOR_SCHEMES).forEach(i => html.classList.toggle(i, i === CS))
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region INITIALIZATION -------------------------------------------------------------------------
+  function init() {
+    const retrieved_SVs = retrieve_SVs()
+    update_SVs(retrieved_SVs)
+    update_TAs(retrieved_SVs)
+
+    update_SM(retrieved_SVs.get('mode'))
+    update_CS(retrieved_SVs.get('mode'))
+    toggle_MC(retrieved_SVs.get('mode'))
+  }
+  // #endregion -------------------------------------------------------------------------------------
+
+  init()
 }

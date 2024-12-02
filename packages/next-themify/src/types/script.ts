@@ -52,7 +52,7 @@ export type HVs_Update = {
       value: {
         current: { value: Nullable<string>; is_available: UndefinedOr<boolean> }
         provided: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
-        updated: { value: UndefinedOr<string>; is_same: UndefinedOr<boolean>; has_changed: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+        updated: { value: UndefinedOr<string>; is_same: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
         default: ReturnType<Default_Values['get']>
       }
       available_values: NonNullable<ReturnType<Available_Values['get']>>
@@ -62,7 +62,7 @@ export type HVs_Update = {
 }
 
 export type SM_Sanitization = {
-  is_mode_handled: boolean
+  is_handled: boolean
   value: Nullable<string>
   is_available: UndefinedOr<boolean>
   sanitized_mode: UndefinedOr<string>
@@ -73,25 +73,25 @@ export type SM_Sanitization = {
   default_mode: ReturnType<Default_Values['get']>
 }
 export type SM_Update = {
-  is_mode_handled: boolean
-  curr_mode: { value: Nullable<string>; was_available: UndefinedOr<boolean> }
-  prov_mode: { value: Nullable<string>; was_available: UndefinedOr<true>; was_same: UndefinedOr<boolean> }
-  updated_mode: { value: UndefinedOr<string>; got_updated: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+  is_handled: boolean
+  current: { value: Nullable<string>; is_available: UndefinedOr<boolean> }
+  provided: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
+  updated: { mode: UndefinedOr<string>; is_same: UndefinedOr<boolean>, is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
   available_modes: NonNullable<ReturnType<Available_Values['get']>>
   default_mode: ReturnType<Default_Values['get']>
+  performed_update: boolean
 }
 
 export type CS_Sanitization = {
   is_mode_handled: boolean
-  mode: { value: Nullable<string>; is_available: UndefinedOr<true>; sanitized_mode: UndefinedOr<string>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_system: UndefinedOr<boolean>; available_modes: NonNullable<ReturnType<Available_Values['get']>>; default_mode: ReturnType<Default_Values['get']> }
-  value: Nullable<string>
-  correct_CS: UndefinedOr<Color_Scheme>
-  is_correct: UndefinedOr<boolean>
+  mode: Omit<SM_Sanitization, 'is_handled'>
+  CS: { value: Nullable<string>; correct_CS: UndefinedOr<Color_Scheme>; is_correct: UndefinedOr<boolean>, is_resolved: UndefinedOr<boolean> }
 }
 export type CS_Update = {
   is_mode_handled: boolean
-  mode: { value: Nullable<string>; is_available: UndefinedOr<true> }
-  curr_CS: { value: Nullable<string>; was_correct: UndefinedOr<boolean> }
-  updated_CS: { value: UndefinedOr<Color_Scheme>; got_updated: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
+  mode: Omit<SM_Sanitization, 'is_handled'>
+  current: { value: Nullable<string>; is_correct: UndefinedOr<boolean>, is_resolved: UndefinedOr<boolean> }
+  updated: { CS: UndefinedOr<Color_Scheme>; is_same: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
   correct_CS: UndefinedOr<Color_Scheme | Color_Scheme[]>
+  performed_update: boolean
 }
