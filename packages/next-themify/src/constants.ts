@@ -31,3 +31,4 @@ export type Color_Scheme = typeof COLOR_SCHEMES[keyof typeof COLOR_SCHEMES]
 
 export const CONFIG_SK = 'next-themify' as const
 export const MODE_SK = 'theme' as const
+export const CUSTOM_SEK = 'custom-storage-event' as const

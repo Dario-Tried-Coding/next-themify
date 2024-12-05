@@ -20,9 +20,15 @@ export default function RootLayout({
         <ThemeProvider<typeof keys>
           config={{
             mode: {
-              strategy: 'mono',
-              key: 'default',
-              colorScheme: 'dark'
+              strategy: 'light_dark',
+              enableSystem: true,
+              default: 'system',
+              fallback: 'light',
+              keys: {
+                light: 'light',
+                dark: 'dark',
+                system: 'system',
+              },
             },
             theme: {
               strategy: 'mono',

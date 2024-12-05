@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, PropsWithChildren, useContext } from 'react'
-import { COLOR_SCHEMES, CONFIG_SK, MODE_SK, MODES, STRATS } from './constants'
+import { COLOR_SCHEMES, CONFIG_SK, CUSTOM_SEK, MODE_SK, MODES, STRATS } from './constants'
 import { script } from './script'
 import { Config, Keys } from './types'
 import { Handled_Values, Script_Params } from './types/script'
@@ -14,12 +14,14 @@ const Context = createContext<Context | null>(null)
 interface ThemeProviderProps<K extends Keys> extends PropsWithChildren {
   config_sk?: string
   mode_sk?: string
+  custom_sek?: string
   config: Config<K>
 }
-export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, config, children }: ThemeProviderProps<K>) {
+export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, custom_sek, config, children }: ThemeProviderProps<K>) {
   const scriptArgs = JSON.stringify({
     config_SK: config_sk || CONFIG_SK,
     mode_SK: mode_sk || MODE_SK,
+    custom_SEK: custom_sek || CUSTOM_SEK,
     config: config,
     constants: { STRATS, MODES, COLOR_SCHEMES },
   } satisfies Script_Params)
