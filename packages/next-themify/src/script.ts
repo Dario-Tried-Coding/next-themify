@@ -205,7 +205,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
       fallback_value: UndefinedOr<string>
       old_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean> }
       new_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean> }
-      updated_value: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; was_updated: boolean }
+      updated_value: { value: UndefinedOr<string>; is_updated: boolean, is_reverted: boolean }
     }): Value_Update_Report => ({
       prop,
       available_values,
@@ -220,13 +220,15 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     for (const [_, { prop, available_values, default_value, fallback_value, candidate_value, sanitized_value }] of sanitization) {
       const old_value = { is_provided: fallback_value.is_provided, value: fallback_value.candidate, is_available: fallback_value.is_available, is_fallback: fallback_value.is_resolved }
       const new_value = { is_provided: candidate_value.is_provided, value: candidate_value.value, is_available: candidate_value.is_available }
-      const was_updated = opts.active ? !old_value.is_available || (old_value.is_available && !!new_value.is_available && old_value.value !== new_value.value) : prop.is_handled && !new_value.is_available
-      const updated_value = { value: sanitized_value.value, is_reverted: sanitized_value.is_reverted, was_updated }
+      const is_updated = opts.active ? (!!new_value.is_available && old_value.value !== new_value.value) || (!new_value.is_available && old_value.value !== sanitized_value.value) : old_value.value !== new_value.value
+      const is_reverted = !new_value.is_available
+      const updated_value = { value: sanitized_value.value, is_updated, is_reverted }
       report.set(prop.prop, sanitization_entry({ prop, available_values, default_value, fallback_value: fallback_value.resolved, old_value, new_value, updated_value }))
     }
 
     const entries = Array.from(report.values())
-    const performed_update = entries.some(({ updated_value }) => updated_value.was_updated)
+    const updated = entries.some(({ updated_value }) => updated_value.is_updated)
+    const reverted = entries.some(({ updated_value }) => updated_value.is_reverted)
 
     const candidates: Values_Update['values']['candidates'] = {
       values: new_values,
@@ -241,27 +243,18 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
       not_available: new Map(entries.filter(({ old_value }) => old_value.is_provided && !old_value.is_available).map(({ prop, old_value }) => [prop.prop, old_value.value])),
     }
     const resolved: Values_Update['values']['resolved'] = {
-      values: new Map(entries.filter(({ prop }) => prop.is_handled).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>])),
+      final: new Map(entries.filter(({ prop }) => prop.is_handled).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>])),
       pruned: new Map(entries.filter(({ prop, old_value }) => !prop.is_handled && old_value.is_provided).map(({ prop, old_value }) => [prop.prop, old_value.value as NonNullable<typeof old_value.value>])),
-      updated: new Map(entries.filter(({ prop, updated_value }) => prop.is_handled && updated_value.was_updated).map(({ prop, updated_value }) => [prop.prop, updated_value.value])),
-      not_updated: new Map(entries.filter(({ prop, updated_value }) => prop.is_handled && !updated_value.was_updated).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>])),
+      stale: new Map(entries.filter(({ updated_value }) => !updated_value.is_updated && !updated_value.is_reverted).map(({ prop, new_value }) => [prop.prop, new_value.value as NonNullable<typeof new_value.value>])),
+      ignored: new Map(entries.filter(({ prop, new_value }) => !prop.is_handled && new_value.is_provided).map(({ prop, new_value }) => [prop.prop, new_value.value as NonNullable<typeof new_value.value>])),
+      updated: new Map(entries.filter(({ prop, updated_value }) => prop.is_handled && !updated_value.is_reverted && updated_value.is_updated).map(({ prop, updated_value }) => [prop.prop, updated_value.value])),
+      reverted: new Map(entries.filter(({ new_value, updated_value }) => new_value.is_provided && updated_value.is_reverted).map(({ prop, updated_value }) => [prop.prop, updated_value.value])),
+      implicit: new Map(entries.filter(({ prop, new_value }) => prop.is_handled && !new_value.is_provided).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>]))
     }
 
-    return { ctx, performed_update, values: { report, candidates, previous, resolved } }
+    if (opts.active && updated) setter(resolved.final)
+    if (!opts.active && reverted) setter(resolved.final)
+    return { ctx, updated, reverted, values: { report, candidates, previous, resolved } }
   }
-  console.log(
-    handle_CV(
-      {
-        old_values: new Map([
-          ['theme', 'default'],
-          ['mode', 'dark'],
-          ['colorScheme', 'dark'],
-        ]),
-        new_values: new Map([['mode', 'dark']]),
-        setter() {},
-      },
-      { active: true }
-    )
-  )
   // #endregion -------------------------------------------------------------------------------------
 }

@@ -49,7 +49,7 @@ export type Value_Update_Report = Omit<Value_Sanitization, 'candidate_value' | '
   fallback_value: UndefinedOr<string>
   old_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
   new_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
-  updated_value: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_same: UndefinedOr<boolean>; was_updated: boolean }
+  updated_value: { value: UndefinedOr<string>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_same: UndefinedOr<boolean>; is_updated: boolean; is_reverted: boolean }
 }
 export type Values_Update = {
   ctx: Ctx
@@ -68,13 +68,17 @@ export type Values_Update = {
       not_available: Map<string, Nullable<string>>
     }
     resolved: {
-      values: Map<string, UndefinedOr<string>>
+      final: Map<string, string>
       pruned: Map<string, string>
       updated: Map<string, UndefinedOr<string>>
-      not_updated: Map<string, string>
+      stale: Map<string, string>
+      ignored: Map<string, string>
+      implicit: Map<string, string>
+      reverted: Map<string, UndefinedOr<string>>
     }
   }
-  performed_update: boolean
+  updated: boolean
+  reverted: boolean
 }
 
 export type SM_Sanitization = {
