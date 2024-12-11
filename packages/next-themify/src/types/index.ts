@@ -1,4 +1,4 @@
-import { Color_Scheme, CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
+import { Color_Scheme, CUSTOM, DARK, LIGHT, LIGHT_DARK, MONO, MULTI, DEFAULT, STATIC, SYSTEM } from '../constants'
 import { AtLeastOne, IsLiteralArray, ToObjects } from './utils'
 
 // #region Keys ------------------------------------------------------------------------------------------
@@ -31,10 +31,10 @@ export type Mode<Key extends string = string> = {
   colorScheme: Color_Scheme
 }
 
-export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key } // Static -> Mono_Strat<string>; Default -> Mono_Strat<DEFAULT>; Dynamic -> Mono_Strat<'string'>
-export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; default: Keys[number] } // Static -> Multi_Strat<string[]>; Dynamic -> Multi_Strat<['string1', 'string2']>
+export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key } // Static -> Mono_Strat<string>; Default -> Mono_Strat<PREFERRED>; Dynamic -> Mono_Strat<'string'>
+export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; preferred: Keys[number] } // Static -> Multi_Strat<string[]>; Dynamic -> Multi_Strat<['string1', 'string2']>
 
-// Static -> Mono_Mode_Strat<string>; Default -> Mono_Mode_Strat<DEFAULT>; Dynamic -> Mono_Mode_Strat<'some string'>
+// Static -> Mono_Mode_Strat<string>; Default -> Mono_Mode_Strat<PREFERRED>; Dynamic -> Mono_Mode_Strat<'some string'>
 export type Mono_Mode_Strat<Key extends string> = {
   strategy: MONO
 } & Mode<Key>
@@ -42,7 +42,7 @@ export type Mono_Mode_Strat<Key extends string> = {
 export type Custom_Mode_Strat<Keys extends string[]> = {
   strategy: CUSTOM
   keys: ToObjects<Keys, Mode>
-  default: Keys[number]
+  preferred: Keys[number]
 }
 // Static -> Light_Dark_Strat<{light: string, dark: string, system: string, custom: string[]}>;
 // Default -> Light_Dark_Strat;
@@ -52,7 +52,7 @@ export type Light_Dark_Mode_Strat<Overrides extends Partial<Light_Dark_Keys> = {
 } & (
   | {
       enableSystem: true
-      default:
+      preferred:
         | (Overrides['light'] extends string ? Overrides['light'] : LIGHT)
         | (Overrides['dark'] extends string ? Overrides['dark'] : DARK)
         | (Overrides['system'] extends string ? Overrides['system'] : SYSTEM)
@@ -73,7 +73,7 @@ export type Light_Dark_Mode_Strat<Overrides extends Partial<Light_Dark_Keys> = {
     }
   | {
       enableSystem: false
-      default:
+      preferred:
         | (Overrides['light'] extends string ? Overrides['light'] : LIGHT)
         | (Overrides['dark'] extends string ? Overrides['dark'] : DARK)
         | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
@@ -91,7 +91,7 @@ export type Light_Dark_Mode_Strat<Overrides extends Partial<Light_Dark_Keys> = {
 // #region Config ----------------------------------------------------------------------------------------
 
 // Static Mono -> Generic_Prop<string>; Static Multi -> Generic_Prop<string[]>
-// Default Mono -> Generic_Prop<DEFAULT>
+// Default Mono -> Generic_Prop<PREFERRED>
 // Dynamic Mono -> Generic_Prop<'some string'>; Dynamic Multi -> Generic_Prop<['string1', 'string2']>
 type Generic_Prop<K extends Basic_Key> = K extends Mono_Key ? Mono_Strat<K> : K extends Multi_Keys ? Multi_Strat<K> : never
 

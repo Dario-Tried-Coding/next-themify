@@ -12,7 +12,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = null satisfies Keys
+  const keys = {theme: ['custom-1', 'custom-2']} as const satisfies Keys
 
   return (
     <html lang='en' suppressHydrationWarning>
@@ -22,7 +22,7 @@ export default function RootLayout({
             mode: {
               strategy: 'light_dark',
               enableSystem: true,
-              default: 'system',
+              preferred: 'system',
               fallback: 'light',
               keys: {
                 light: 'light',
@@ -31,8 +31,9 @@ export default function RootLayout({
               },
             },
             theme: {
-              strategy: 'mono',
-              key: 'default',
+              strategy: 'multi',
+              keys: ['custom-1', 'custom-2'],
+              preferred: 'custom-2'
             },
           }}
         >

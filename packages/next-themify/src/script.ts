@@ -1,5 +1,5 @@
 import { Color_Scheme } from './constants'
-import { Script_Params, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update } from './types/script'
+import { Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -7,7 +7,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
   const handled_props = get_handled_props()
   const available_values = get_available_values()
-  const default_values = get_default_values()
+  const preferred_values = get_preferred_values()
   const color_schemes = get_color_schemes()
 
   // #region HELPERS --------------------------------------------------------------------------------
@@ -50,22 +50,22 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
     return target ? available_values.get(target) : (available_values as any)
   }
-  function is_available_value(prop: Nullable<string>, value: Nullable<string>) {
+  function is_available(prop: Nullable<string>, value: Nullable<string>) {
     if (!prop || !value) return undefined
     return available_values.get(prop)?.has(value)
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region UTILS - default values -----------------------------------------------------------------
-  function get_default_values() {
-    return new Map(Object.entries(config).map(([prop, obj]) => [prop, obj.strategy === STRATS.mono ? obj.key : obj.default]))
+  // #region UTILS - preferred values -----------------------------------------------------------------
+  function get_preferred_values() {
+    return new Map(Object.entries(config).map(([prop, obj]) => [prop, obj.strategy === STRATS.mono ? obj.key : obj.preferred]))
   }
-  function get_default_value(prop: Nullable<string>) {
+  function get_preferred_value(prop: Nullable<string>) {
     if (!prop) return undefined
-    return default_values.get(prop)
+    return preferred_values.get(prop)
   }
-  function is_default_value(prop: Nullable<string>, value: Nullable<string>) {
+  function is_preferred(prop: Nullable<string>, value: Nullable<string>) {
     if (!prop || !value) return false
-    return default_values.get(prop) === value
+    return preferred_values.get(prop) === value
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region UTILS - color schemes ------------------------------------------------------------------
@@ -85,176 +85,256 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region VALUES - sanitizer ---------------------------------------------------------------------
-  function sanitize_values(candidate_values: Map<string, string>, opts?: { fallback_values?: Map<string, string> }): Values_Sanitization {
-    const ctx = { handled_props, available_values, default_values }
-    const sanitization: Values_Sanitization['values']['sanitization'] = new Map()
+  function sanitize_values({ candidate_values, fallback_values }: { candidate_values: Map<string, string>; fallback_values?: Map<string, string> }): Values_Sanitization {
+    const ctx = { handled_props, available_values, preferred_values }
+    const sanitization: Values_Sanitization['sanitization'] = new Map()
 
     // prettier-ignore
-    const sanitization_entry = (
-      { prop, candidate_value: { value, is_available, is_provided }, available_values, default_value, fallback_value, sanitized_value: { value: sanitized_value, is_reverted } }:
-      {
-        prop: { prop: string; is_handled: boolean };
-        available_values: Set<string>;
-        default_value: UndefinedOr<string>;
-        fallback_value: { is_provided: boolean; candidate: UndefinedOr<string>; is_available: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean>, resolved: UndefinedOr<string> };
-        candidate_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean> };
-        sanitized_value: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean> }
-      }
-    ): Value_Sanitization => ({
-      prop,
-      available_values,
-      default_value,
-      fallback_value,
-      candidate_value: { is_provided, value, is_available, is_fallback: prop.is_handled ? value === fallback_value.resolved : undefined, is_default: prop.is_handled ? value === default_value : undefined },
-      sanitized_value: { value: sanitized_value, is_reverted, is_fallback: prop.is_handled ? sanitized_value === fallback_value.resolved : undefined, is_default: prop.is_handled ? sanitized_value === default_value : undefined }
-    })
+    const sanitization_entry = ({ prop, available, preferred, candidate_fallback, fallback, candidate, sanitized }:
+    {
+      prop: Value_Sanitization['prop']
+      available: Value_Sanitization['available']
+      preferred: Value_Sanitization['preferred']
+      candidate_fallback: Value_Sanitization['candidate_fallback']['value']
+      fallback: Value_Sanitization['fallback']['value']
+      candidate: Value_Sanitization['candidate']['value']
+      sanitized: Value_Sanitization['sanitized']['value']
+      }): Value_Sanitization => {
+      const is_candidate_fallback_provided = !!candidate_fallback
+      const is_candidate_fallback_available = prop.is_handled ? is_available(prop.prop, candidate_fallback) : undefined
+      const is_candidate_available = prop.is_handled ? is_available(prop.prop, candidate) : undefined
 
-    for (const [prop, candidate] of opts?.fallback_values ?? new Map<string, string>()) {
-      const is_handled = is_handled_prop(prop)
-      const available_values = get_available_values(prop as string) ?? new Set()
-      const default_value = get_default_value(prop)
-      const is_available = is_available_value(prop, candidate)
-      const resolved = is_handled && is_available ? candidate : default_value
-      const is_resolved = is_handled && is_available && resolved === candidate
-      const sanitized = resolved
-      sanitization.set(
+      return {
         prop,
-        sanitization_entry({
-          prop: { prop, is_handled },
-          available_values,
-          default_value,
-          fallback_value: { is_provided: true, candidate, is_available, is_resolved, resolved },
-          candidate_value: { is_provided: false, value: null, is_available: undefined },
-          sanitized_value: { value: sanitized, is_reverted: true },
-        })
-      )
+        available,
+        preferred,
+        candidate_fallback: { is_provided: is_candidate_fallback_provided, value: candidate_fallback, is_available: is_candidate_fallback_available, is_preferred: is_candidate_fallback_provided ? is_preferred(prop.prop, candidate_fallback) : undefined },
+        fallback: { value: fallback, is_reverted: is_candidate_fallback_provided ? !is_candidate_fallback_available : undefined, is_preferred: prop.is_handled ? fallback === preferred : undefined },
+        candidate: { is_provided: !!candidate, value: candidate, is_available: is_candidate_available, is_fallback: is_candidate_available ? candidate === fallback : undefined, is_preferred: is_candidate_available ? candidate === preferred : undefined },
+        sanitized: { is_reverted: !!candidate ? !is_candidate_available : undefined, value: sanitized, is_fallback: prop.is_handled ? sanitized === fallback : undefined, is_preferred: prop.is_handled ? sanitized === preferred : undefined },
+      }
     }
 
-    for (const [prop, candidate_value] of candidate_values) {
+    for (const [prop, candidate_fallback] of fallback_values ?? new Map<string, string>()) {
       const is_handled = is_handled_prop(prop)
-      const available_values = get_available_values(prop) ?? new Set()
-      const default_value = get_default_value(prop)
-      const candidate_fallback = opts?.fallback_values?.get(prop)
-      const is_fallback_provided = !!candidate_fallback
-      const is_candidate_fallback_available = is_available_value(prop, candidate_fallback)
-      const resolved_fallback = is_candidate_fallback_available ? candidate_fallback : default_value
-      // TODO: Make it undefined if not handled
-      const is_candidate_fallback_resolved = is_handled && is_candidate_fallback_available && candidate_fallback === resolved_fallback
-      const is_available = is_available_value(prop, candidate_value)
-      const sanitized = is_available ? candidate_value : resolved_fallback
-      const is_reverted = !is_available
-      sanitization.set(
-        prop,
-        sanitization_entry({
-          prop: { prop, is_handled },
-          available_values,
-          default_value,
-          fallback_value: { is_provided: is_fallback_provided, candidate: candidate_fallback, is_available: is_candidate_fallback_available, is_resolved: is_candidate_fallback_resolved, resolved: resolved_fallback },
-          candidate_value: { is_provided: true, value: candidate_value, is_available },
-          sanitized_value: { value: sanitized, is_reverted },
-        })
-      )
+      const available = get_available_values(prop as string) ?? new Set()
+      const preferred = is_handled ? get_preferred_value(prop) : undefined
+      const is_candidate_fallback_available = is_available(prop, candidate_fallback)
+      const fallback = is_handled ? (is_candidate_fallback_available ? candidate_fallback : preferred) : undefined
+      const sanitized = fallback
+      sanitization.set(prop, sanitization_entry({ prop: { prop, is_handled }, available, preferred, candidate_fallback, fallback, candidate: null, sanitized }))
+    }
+
+    for (const [prop, candidate] of candidate_values) {
+      const is_handled = is_handled_prop(prop)
+      const available = get_available_values(prop) ?? new Set()
+      const preferred = is_handled ? get_preferred_value(prop) : undefined
+      const candidate_fallback = fallback_values?.get(prop)
+      const is_candidate_fallback_available = is_available(prop, candidate_fallback)
+      const fallback = is_handled ? (is_candidate_fallback_available ? candidate_fallback : preferred) : undefined
+      const sanitized = is_handled ? (is_available(prop, candidate) ? candidate : fallback) : undefined
+      sanitization.set(prop, sanitization_entry({ prop: { prop, is_handled }, available, preferred, candidate_fallback, fallback, candidate, sanitized }))
     }
 
     for (const prop of handled_props) {
       if (sanitization.has(prop)) continue
 
-      const available_values = get_available_values(prop) ?? new Set()
-      const default_value = get_default_value(prop)
-      const candidate_fallback = opts?.fallback_values?.get(prop)
-      const is_fallback_provided = !!candidate_fallback
-      const is_candidate_fallback_available = is_available_value(prop, candidate_fallback)
-      const resolved_fallback = is_candidate_fallback_available ? candidate_fallback : default_value
-      const is_candidate_fallback_resolved = is_candidate_fallback_available && candidate_fallback === resolved_fallback
-      const sanitized = resolved_fallback
-      sanitization.set(
+      const available = get_available_values(prop) ?? new Set()
+      const preferred = get_preferred_value(prop)
+      const candidate_fallback = fallback_values?.get(prop)
+      const fallback = is_available(prop, candidate_fallback) ? candidate_fallback : preferred
+      sanitization.set(prop, sanitization_entry({ prop: { prop, is_handled: true }, available, preferred, candidate_fallback, fallback, candidate: null, sanitized: fallback }))
+    }
+
+    const entries = Array.from(sanitization.entries())
+    const are_ready_to_use = entries.every(([_, { candidate }]) => candidate.is_provided && candidate.is_available)
+
+    return { ctx, performed_on: candidate_values, are_ready_to_use, sanitization }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region VALUES - change handler ----------------------------------------------------------------
+  function handle_values({ old_values, new_values, setter }: { old_values: Map<string, string>; new_values: Map<string, string>; setter: (values: Map<string, string>) => void }, { active }: { active: boolean }): Values_Update_Report {
+    const { ctx, sanitization } = sanitize_values({ candidate_values: new_values, fallback_values: old_values })
+
+    // prettier-ignore
+    const report_entry = ({ prop, available, preferred, previous, candidate }:
+      {
+        prop: Value_Update_Report['prop'];
+        available: Value_Update_Report['available'];
+        preferred: Value_Update_Report['preferred'];
+        previous: Value_Update_Report['previous']['value'];
+        candidate: Value_Update_Report['candidate']['value'];
+      }): Value_Update_Report => {
+      const is_previous_provided = !!previous
+      const is_previous_available = is_previous_provided ? is_available(prop.prop, previous) : undefined
+      const fallback = (prop.is_handled ? is_previous_available ? previous as NonNullable<typeof previous> : preferred : undefined)
+      const is_candidate_next_provided = !!candidate
+      const is_candidate_next_available = is_candidate_next_provided ? is_available(prop.prop, candidate) : undefined
+      const next = prop.is_handled ? (is_candidate_next_available ? (candidate as NonNullable<typeof candidate>) : fallback) : undefined
+      const is_reverted = prop.is_handled ? !is_candidate_next_available : undefined
+      const is_updated = !previous !== !next || previous !== next
+
+      return {
         prop,
-        sanitization_entry({
-          prop: { prop, is_handled: true },
-          available_values,
-          default_value,
-          fallback_value: { is_provided: is_fallback_provided, candidate: candidate_fallback, is_available: is_candidate_fallback_available, is_resolved: is_candidate_fallback_resolved, resolved: resolved_fallback },
-          candidate_value: { is_provided: false, value: null, is_available: undefined },
-          sanitized_value: { value: sanitized, is_reverted: true },
+        available,
+        preferred,
+        previous: { is_provided: is_previous_provided, value: previous, is_available: is_previous_provided ? is_previous_available : undefined, is_preferred: is_previous_provided ? is_preferred(prop.prop, previous) : undefined },
+        fallback: { value: fallback, is_reverted: prop.is_handled ? !is_previous_available : undefined, is_preferred: prop.is_handled ? fallback === preferred : undefined },
+        candidate: { is_provided: is_candidate_next_provided, value: candidate, is_available: is_candidate_next_available, is_fallback: prop.is_handled ? candidate === fallback : undefined, is_preferred: prop.is_handled ? is_preferred(prop.prop, candidate) : undefined },
+        next: { value: next, is_reverted, is_updated, is_fallback: prop.is_handled ? next === fallback : undefined, is_preferred: prop.is_handled ? next === preferred : undefined },
+      }
+    }
+
+    const report: Values_Update_Report['report'] = new Map()
+    for (const [_, { prop, preferred, candidate_fallback, candidate }] of sanitization) {
+      report.set(
+        prop.prop,
+        report_entry({
+          prop,
+          available: available_values.get(prop.prop) ?? new Set(),
+          preferred,
+          previous: candidate_fallback.value,
+          candidate: candidate.value,
         })
       )
     }
 
-    const entries = Array.from(sanitization.entries())
-    const are_ready_to_use = entries.every(([_, { candidate_value }]) => candidate_value.is_provided && candidate_value.is_available)
+    const entries = Array.from(report.values())
+    const did_update = entries.some(({ next }) => next.is_updated)
+    const did_reverte = entries.some(({ next }) => next.is_reverted)
+    const did_execute = active ? did_update : did_reverte
 
-    const create_map = ({ filter, map }: { filter: (entry: Value_Sanitization) => boolean; map: (entry: Value_Sanitization) => [string, string] }) => new Map(entries.filter(([_, sanitization]) => filter(sanitization)).map(([_, sanitization]) => map(sanitization)))
+    const candidates: Values_Update_Report['values']['candidates'] = new Map(entries.filter(({ prop, candidate }) => prop.is_handled && candidate.is_provided && candidate.is_available).map(({ prop, candidate }) => [prop.prop, candidate.value as NonNullable<typeof candidate.value>]))
+    const candidates_unavailable: Values_Update_Report['values']['candidates_unavailable'] = new Map(entries.filter(({ prop, candidate }) => prop.is_handled && candidate.is_provided && !candidate.is_available).map(({ prop, candidate }) => [prop.prop, candidate.value as NonNullable<typeof candidate.value>]))
+    const candidates_implicit: Values_Update_Report['values']['candidates_implicit'] = new Map(entries.filter(({ prop, candidate }) => prop.is_handled && !candidate.is_provided).map(({ prop, next }) => [prop.prop, next.value as NonNullable<typeof next.value>]))
+    const candidates_ignored: Values_Update_Report['values']['candidates_ignored'] = new Map(entries.filter(({ prop, candidate }) => !prop.is_handled && candidate.is_provided).map(({ prop, candidate }) => [prop.prop, candidate.value as NonNullable<typeof candidate.value>]))
+    const previous: Values_Update_Report['values']['previous'] = new Map(entries.filter(({ prop, previous }) => prop.is_handled && previous.is_provided && previous.is_available).map(({ prop, previous }) => [prop.prop, previous.value as NonNullable<typeof previous.value>]))
+    const previous_unavailable: Values_Update_Report['values']['previous_unavailable'] = new Map(entries.filter(({ prop, previous }) => prop.is_handled && previous.is_provided && !previous.is_available).map(({ prop, previous }) => [prop.prop, previous.value as NonNullable<typeof previous.value>]))
+    const previous_missing: Values_Update_Report['values']['previous_missing'] = new Set(entries.filter(({ prop, previous }) => prop.is_handled && !previous.is_provided).map(({ prop }) => prop.prop))
+    const previous_pruned: Values_Update_Report['values']['previous_pruned'] = new Map(entries.filter(({ prop, previous }) => !prop.is_handled && previous.is_provided).map(({ prop, previous }) => [prop.prop, previous.value as NonNullable<typeof previous.value>]))
+    const resolved: Values_Update_Report['values']['resolved'] = new Map(entries.filter(({ prop }) => prop.is_handled).map(({ prop, next }) => [prop.prop, next.value as NonNullable<typeof next.value>]))
+    const updated: Values_Update_Report['values']['updated'] = new Map(entries.filter(({ prop, next }) => prop.is_handled && !next.is_reverted && next.is_updated).map(({ prop, next }) => [prop.prop, next.value]))
+    const stale: Values_Update_Report['values']['stale'] = new Map(entries.filter(({ next }) => !next.is_updated && !next.is_reverted).map(({ prop, previous }) => [prop.prop, previous.value as NonNullable<typeof previous.value>]))
+    const reverted: Values_Update_Report['values']['reverted'] = new Map(entries.filter(({ candidate, next }) => candidate.is_provided && next.is_reverted).map(({ prop, next }) => [prop.prop, next.value]))
 
-    const missing = create_map({ filter: ({ prop, candidate_value }) => prop.is_handled && !candidate_value.is_provided, map: ({ prop, sanitized_value }) => [prop.prop, sanitized_value.value as NonNullable<typeof sanitized_value.value>] })
-    const handled = create_map({ filter: ({ prop }) => prop.is_handled, map: ({ prop, sanitized_value }) => [prop.prop, sanitized_value.value as NonNullable<typeof sanitized_value.value>] })
-    const not_handled = create_map({ filter: ({ prop }) => !prop.is_handled, map: ({ prop, candidate_value }) => [prop.prop, candidate_value.value as NonNullable<typeof candidate_value.value>] })
-
-    return { ctx, performed_on: { values: candidate_values, are_ready_to_use }, values: { sanitization, missing, handled, not_handled } }
+    if (did_execute) setter(resolved)
+    return { ctx, report, did_update, did_reverte, did_execute, values: { candidates, candidates_unavailable, candidates_implicit, candidates_ignored, previous, previous_unavailable, previous_missing, previous_pruned, resolved, updated, stale, reverted } }
+  }
+  // #endregion -----------------------------------------------------------------------------------------
+  // #region SVs - retriever -------------------------------------------------------------------------
+  function retrieve_SVs() {
+    return json_to_map(localStorage.getItem(config_SK))
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region VALUES - change handler ----------------------------------------------------------------
-  function handle_CV({ old_values, new_values, setter }: { old_values: Map<string, string>; new_values: Map<string, string>; setter: (handled_values: Map<string, string>) => void }, opts: { active: boolean }): Values_Update {
-    // prettier-ignore
-    const { values: { sanitization }, ctx } = sanitize_values(new_values, { fallback_values: old_values })
-    // prettier-ignore
-    const sanitization_entry = ({ prop, available_values, default_value, fallback_value, old_value, new_value, updated_value }:
-    {
-      prop: { prop: string; is_handled: boolean }
-      available_values: Set<string>
-      default_value: UndefinedOr<string>
-      fallback_value: UndefinedOr<string>
-      old_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean> }
-      new_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean> }
-      updated_value: { value: UndefinedOr<string>; is_updated: boolean, is_reverted: boolean }
-    }): Value_Update_Report => ({
-      prop,
-      available_values,
-      default_value,
-      fallback_value,
-      old_value: { ...old_value, is_fallback: !fallback_value || !old_value.value ? undefined : old_value.value === fallback_value, is_default: !default_value || !old_value.value ? undefined : old_value.value === default_value },
-      new_value: { ...new_value, is_fallback: !fallback_value || !new_value.value ? undefined : new_value.value === fallback_value, is_default: !default_value || !new_value.value ? undefined : new_value.value === default_value, is_same: (!old_value.value && !new_value.value) || new_value.value === old_value.value },
-      updated_value: { ...updated_value, is_fallback: !fallback_value || !updated_value.value ? undefined : updated_value.value === fallback_value, is_default: !default_value || !updated_value.value ? undefined : updated_value.value === default_value, is_same: (!old_value.value && !updated_value.value) || updated_value.value === old_value.value },
+  // #region SV - updater ---------------------------------------------------------------------------
+  function update_SVs({ new_values }: { new_values: Map<string, string> }, { active }: { active: boolean }) {
+    const old_values = retrieve_SVs()
+    const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(values)))
+    return handle_values({ new_values, old_values, setter }, { active })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region TA - retriever -------------------------------------------------------------------------
+  function retrieve_TAs() {
+    const retrieved_TAs: Map<string, string> = new Map()
+
+    handled_props.forEach((prop) => {
+      const name = `data-${prop}`
+      const value = html.getAttribute(name)
+      if (value) retrieved_TAs.set(prop, value)
     })
 
-    const report: Values_Update['values']['report'] = new Map()
-    for (const [_, { prop, available_values, default_value, fallback_value, candidate_value, sanitized_value }] of sanitization) {
-      const old_value = { is_provided: fallback_value.is_provided, value: fallback_value.candidate, is_available: fallback_value.is_available, is_fallback: fallback_value.is_resolved }
-      const new_value = { is_provided: candidate_value.is_provided, value: candidate_value.value, is_available: candidate_value.is_available }
-      const is_updated = opts.active ? (!!new_value.is_available && old_value.value !== new_value.value) || (!new_value.is_available && old_value.value !== sanitized_value.value) : old_value.value !== new_value.value
-      const is_reverted = !new_value.is_available
-      const updated_value = { value: sanitized_value.value, is_updated, is_reverted }
-      report.set(prop.prop, sanitization_entry({ prop, available_values, default_value, fallback_value: fallback_value.resolved, old_value, new_value, updated_value }))
-    }
-
-    const entries = Array.from(report.values())
-    const updated = entries.some(({ updated_value }) => updated_value.is_updated)
-    const reverted = entries.some(({ updated_value }) => updated_value.is_reverted)
-
-    const candidates: Values_Update['values']['candidates'] = {
-      values: new_values,
-      missing: new Set(entries.filter(({ prop, new_value }) => prop.is_handled && !new_value.is_provided).map(({ prop }) => prop.prop)),
-      not_handled: new Map(entries.filter(({ prop, new_value }) => new_value.is_provided && !prop.is_handled).map(({ prop, new_value }) => [prop.prop, new_value.value as NonNullable<typeof new_value.value>])),
-      not_available: new Map(entries.filter(({ new_value }) => new_value.is_provided && !new_value.is_available).map(({ prop, new_value }) => [prop.prop, new_value.value])),
-    }
-    const previous: Values_Update['values']['previous'] = {
-      values: old_values,
-      missing: new Set(entries.filter(({ prop, old_value }) => prop.is_handled && !old_value.is_provided).map(({ prop }) => prop.prop)),
-      not_handled: new Map(entries.filter(({ prop, old_value }) => old_value.is_provided && !prop.is_handled).map(({ prop, old_value }) => [prop.prop, old_value.value as NonNullable<typeof old_value.value>])),
-      not_available: new Map(entries.filter(({ old_value }) => old_value.is_provided && !old_value.is_available).map(({ prop, old_value }) => [prop.prop, old_value.value])),
-    }
-    const resolved: Values_Update['values']['resolved'] = {
-      final: new Map(entries.filter(({ prop }) => prop.is_handled).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>])),
-      pruned: new Map(entries.filter(({ prop, old_value }) => !prop.is_handled && old_value.is_provided).map(({ prop, old_value }) => [prop.prop, old_value.value as NonNullable<typeof old_value.value>])),
-      stale: new Map(entries.filter(({ updated_value }) => !updated_value.is_updated && !updated_value.is_reverted).map(({ prop, new_value }) => [prop.prop, new_value.value as NonNullable<typeof new_value.value>])),
-      ignored: new Map(entries.filter(({ prop, new_value }) => !prop.is_handled && new_value.is_provided).map(({ prop, new_value }) => [prop.prop, new_value.value as NonNullable<typeof new_value.value>])),
-      updated: new Map(entries.filter(({ prop, updated_value }) => prop.is_handled && !updated_value.is_reverted && updated_value.is_updated).map(({ prop, updated_value }) => [prop.prop, updated_value.value])),
-      reverted: new Map(entries.filter(({ new_value, updated_value }) => new_value.is_provided && updated_value.is_reverted).map(({ prop, updated_value }) => [prop.prop, updated_value.value])),
-      implicit: new Map(entries.filter(({ prop, new_value }) => prop.is_handled && !new_value.is_provided).map(({ prop, updated_value }) => [prop.prop, updated_value.value as NonNullable<typeof updated_value.value>]))
-    }
-
-    if (opts.active && updated) setter(resolved.final)
-    if (!opts.active && reverted) setter(resolved.final)
-    return { ctx, updated, reverted, values: { report, candidates, previous, resolved } }
+    return retrieved_TAs
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region TAs - updater --------------------------------------------------------------------------
+  function update_TAs({ new_values }: { new_values: Map<string, string> }, { active }: { active: boolean }) {
+    const old_values = retrieve_TAs()
+    const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => values.forEach((value, prop) => html.setAttribute(`data-${prop}`, value))
+    return handle_values({ new_values, old_values, setter }, { active })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - retriever -------------------------------------------------------------------------
+  function retrieve_SM() {
+    return html.getAttribute(mode_SK)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - sanitizer -------------------------------------------------------------------------
+  function sanitize_SM({ candidate, candidate_fallback }: { candidate: Nullable<string>; candidate_fallback?: Nullable<string> }): SM_Sanitization {
+    const is_system = (value: Nullable<string>) => {
+      if (!value) return undefined
+      if (!(config.mode && config.mode.strategy === STRATS.light_dark && config.mode.enableSystem)) return undefined
+      return value === config.mode.keys.system
+    }
+
+    const is_handled = is_handled_prop('mode')
+    const available = get_available_values('mode') ?? new Set()
+    const preferred = is_handled ? get_preferred_value('mode') : undefined
+
+    const is_candidate_fallback_provided = !!candidate_fallback
+    const is_candidate_fallback_available = is_candidate_fallback_provided ? is_available('mode', candidate_fallback) : undefined
+    const fallback = is_handled ? (is_candidate_fallback_available ? (candidate_fallback as NonNullable<typeof candidate_fallback>) : preferred) : undefined
+
+    const is_candidate_provided = !!candidate
+    const is_candidate_available = is_handled && is_candidate_provided ? is_available('mode', candidate) : undefined
+
+    const sanitized = is_handled ? (is_candidate_available ? (candidate as NonNullable<typeof candidate>) : fallback) : undefined
+
+    return {
+      is_handled,
+      available,
+      preferred,
+      candidate_fallback: {
+        is_provided: is_candidate_fallback_provided,
+        value: candidate_fallback,
+        is_available: is_candidate_fallback_available,
+        is_preferred: is_handled && is_candidate_fallback_available ? candidate_fallback === preferred : undefined,
+        is_system: is_handled && is_candidate_fallback_available ? is_system(candidate_fallback) : undefined,
+      },
+      fallback: {
+        value: fallback,
+        is_resolved: is_handled && is_candidate_fallback_provided ? !is_candidate_fallback_available : undefined,
+        is_preferred: is_handled ? fallback === preferred : undefined,
+        is_system: is_handled ? is_system(fallback) : undefined,
+      },
+      candidate: {
+        value: candidate,
+        is_available: is_candidate_available,
+        is_fallback: is_handled && is_candidate_available ? candidate === fallback : undefined,
+        is_preferred: is_handled && is_candidate_available ? candidate === preferred : undefined,
+        is_system: is_handled && is_candidate_available ? is_system(candidate) : undefined,
+      },
+      sanitized: {
+        value: sanitized,
+        is_reverted: is_handled && !is_candidate_available,
+        is_fallback: is_handled ? sanitized === fallback : undefined,
+        is_preferred: is_handled ? sanitized === preferred : undefined,
+        is_system: is_handled ? is_system(sanitized) : undefined,
+      },
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - updater ---------------------------------------------------------------------------
+  function update_SM({ new_value }: { new_value: Nullable<string> }, { active }: { active: boolean }): SM_Update {
+    const old_value = retrieve_SM()
+    const { is_handled, available, preferred, fallback, candidate_fallback: previous, candidate, sanitized: next } = sanitize_SM({ candidate: new_value, candidate_fallback: old_value })
+
+    const is_updated = !previous.value !== !next.value || previous.value !== next.value
+    const is_stale = next.value === previous.value
+    const is_reverted = !candidate.is_available
+
+    const did_execute = (active ? is_updated : is_reverted) ?? false
+    if (did_execute) localStorage.setItem(mode_SK, next.value as NonNullable<typeof next.value>)
+
+    return { is_handled, available, preferred, fallback, previous, candidate, next: { ...next, is_updated, is_stale, is_reverted }, did_execute }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region INITIALIZATION -------------------------------------------------------------------------
+  function init() {
+    const retrieved_values = retrieve_SVs()
+    update_SVs({ new_values: retrieved_values }, { active: true })
+    update_TAs({ new_values: retrieved_values }, { active: true })
+    update_SM({ new_value: retrieved_values.get('mode') }, { active: true })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  init()
 }

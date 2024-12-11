@@ -21,85 +21,67 @@ type Available_Values = Map<string, Set<string>>
 type Ctx = {
   handled_props: Set<string>
   available_values: Map<string, Set<string>>
-  default_values: Map<string, string>
+  preferred_values: Map<string, string>
 }
 
 export type Value_Sanitization = {
   prop: { prop: string; is_handled: boolean }
-  available_values: Set<string>
-  default_value: UndefinedOr<string>
-  fallback_value: { is_provided: boolean; candidate: UndefinedOr<string>; is_available: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean>; resolved: UndefinedOr<string> }
-  candidate_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_default: UndefinedOr<boolean> }
-  sanitized_value: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_default: UndefinedOr<boolean> }
+  available: Set<string>
+  preferred: UndefinedOr<string>
+  candidate_fallback: { is_provided: boolean; value: UndefinedOr<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  candidate: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
 }
 export type Values_Sanitization = {
   ctx: Ctx
-  performed_on: {
-    values: Map<string, string>
-    are_ready_to_use: boolean
-  }
-  values: {
-    sanitization: Map<string, Value_Sanitization>
-    missing: Map<string, string>
-    handled: Map<string, string>
-    not_handled: Map<string, string>
-  }
+  performed_on: Map<string, string>
+  are_ready_to_use: boolean
+  sanitization: Map<string, Value_Sanitization>
 }
-export type Value_Update_Report = Omit<Value_Sanitization, 'candidate_value' | 'sanitized_value' | 'fallback_value'> & {
-  fallback_value: UndefinedOr<string>
-  old_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
-  new_value: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
-  updated_value: { value: UndefinedOr<string>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_same: UndefinedOr<boolean>; is_updated: boolean; is_reverted: boolean }
+
+export type Value_Update_Report = Omit<Value_Sanitization, 'candidate' | 'sanitized' | 'candidate_fallback' | 'fallback'> & {
+  previous: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  candidate: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+  next: { value: UndefinedOr<string>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_updated: UndefinedOr<boolean>; is_reverted: UndefinedOr<boolean> }
 }
-export type Values_Update = {
+export type Values_Update_Report = {
   ctx: Ctx
+  report: Map<string, Value_Update_Report>
   values: {
-    report: Map<string, Value_Update_Report>
-    candidates: {
-      values: Map<string, Nullable<string>>
-      missing: Set<string>
-      not_handled: Map<string, string>
-      not_available: Map<string, Nullable<string>>
-    }
-    previous: {
-      values: Map<string, string>
-      missing: Set<string>
-      not_handled: Map<string, string>
-      not_available: Map<string, Nullable<string>>
-    }
-    resolved: {
-      final: Map<string, string>
-      pruned: Map<string, string>
-      updated: Map<string, UndefinedOr<string>>
-      stale: Map<string, string>
-      ignored: Map<string, string>
-      implicit: Map<string, string>
-      reverted: Map<string, UndefinedOr<string>>
-    }
+    candidates: Map<string, string>
+    candidates_unavailable: Map<string, string>
+    candidates_implicit: Map<string, string>
+    candidates_ignored: Map<string, string>
+    previous: Map<string, string>
+    previous_unavailable: Map<string, string>
+    previous_missing: Set<string>
+    previous_pruned: Map<string, string>
+    resolved: Map<string, string>
+    updated: Map<string, UndefinedOr<string>>
+    stale: Map<string, string>
+    reverted: Map<string, UndefinedOr<string>>
   }
-  updated: boolean
-  reverted: boolean
+  did_update: boolean
+  did_reverte: boolean
+  did_execute: boolean
 }
 
 export type SM_Sanitization = {
   is_handled: boolean
-  value: Nullable<string>
-  is_available: UndefinedOr<boolean>
-  sanitized_mode: UndefinedOr<string>
-  is_fallback: UndefinedOr<boolean>
-  is_default: UndefinedOr<boolean>
-  is_system: UndefinedOr<boolean>
-  available_modes: NonNullable<ReturnType<Available_Values['get']>>
-  default_mode: ReturnType<Default_Values['get']>
+  available: Set<string>
+  preferred: UndefinedOr<string>
+  candidate_fallback: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
+  fallback: { value: UndefinedOr<string>; is_resolved: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
+  candidate: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
+  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
 }
-export type SM_Update = {
-  is_handled: boolean
-  current: { value: Nullable<string>; is_available: UndefinedOr<boolean> }
-  provided: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_same: UndefinedOr<boolean> }
-  updated: { mode: UndefinedOr<string>; is_same: UndefinedOr<boolean>; is_default: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
-  available_modes: NonNullable<ReturnType<Available_Values['get']>>
-  default_mode: ReturnType<Default_Values['get']>
-  performed_update: boolean
+export type SM_Update = Pick<SM_Sanitization, 'is_handled' | 'available' | 'preferred' | 'fallback'> & {
+  previous: SM_Sanitization['candidate_fallback']
+  candidate: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
+  next: SM_Sanitization['sanitized'] & { is_updated: boolean; is_stale: UndefinedOr<boolean> }
+  did_execute: boolean
 }
 
 export type CS_Sanitization = {
