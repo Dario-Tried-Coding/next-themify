@@ -86,16 +86,17 @@ export type SM_Update = Pick<SM_Sanitization, 'is_handled' | 'available' | 'pref
 
 export type CS_Sanitization = {
   is_mode_handled: boolean
-  mode: Omit<SM_Sanitization, 'is_handled'>
-  CS: { value: Nullable<string>; correct_CS: UndefinedOr<Color_Scheme>; is_correct: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
+  mode: SM_Sanitization['sanitized']
+  candidate: Nullable<string>
+  is_correct: UndefinedOr<boolean>
+  correct: UndefinedOr<Color_Scheme>
+  is_reverted: UndefinedOr<boolean>
+  is_resolved: UndefinedOr<boolean>
 }
-export type CS_Update = {
-  is_mode_handled: boolean
-  mode: Omit<SM_Sanitization, 'is_handled'>
-  current: { value: Nullable<string>; is_correct: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
-  updated: { CS: UndefinedOr<Color_Scheme>; is_same: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
-  correct_CS: UndefinedOr<Color_Scheme | Color_Scheme[]>
-  performed_update: boolean
+export type CS_Update = Pick<CS_Sanitization, 'is_mode_handled' | 'mode'> & {
+  previous: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
+  next: { value: UndefinedOr<Color_Scheme>; is_resolved: UndefinedOr<boolean>; is_updated: boolean }
+  did_execute: boolean
 }
 
 export type Custom_SE = CustomEvent<{

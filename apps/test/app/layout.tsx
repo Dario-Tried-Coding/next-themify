@@ -15,7 +15,7 @@ export default function RootLayout({
   const keys = {theme: ['custom-1', 'custom-2']} as const satisfies Keys
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning style={{colorScheme: 'light'}}>
       <body>
         <ThemeProvider<typeof keys>
           config={{

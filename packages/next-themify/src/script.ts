@@ -1,5 +1,5 @@
 import { Color_Scheme } from './constants'
-import { Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
+import { CS_Sanitization, CS_Update, Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -8,7 +8,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   const handled_props = get_handled_props()
   const available_values = get_available_values()
   const preferred_values = get_preferred_values()
-  const color_schemes = get_color_schemes()
+  const resolved_modes = get_resolved_modes()
 
   // #region HELPERS --------------------------------------------------------------------------------
   function json_to_map(input: Nullable<string>) {
@@ -68,20 +68,20 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return preferred_values.get(prop) === value
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region UTILS - color schemes ------------------------------------------------------------------
-  function get_color_schemes() {
-    const color_schemes: Map<string, Color_Scheme> = new Map()
+  // #region UTILS - resolved modes -----------------------------------------------------------------
+  function get_resolved_modes() {
+    const resolved_modes: Map<string, Color_Scheme> = new Map()
     // prettier-ignore
     switch (config.mode?.strategy) {
-      case STRATS.mono: color_schemes.set(config.mode.key, config.mode.colorScheme); break
-      case STRATS.custom: config.mode.keys.forEach(({ key, colorScheme }) => color_schemes.set(key, colorScheme)); break
+      case STRATS.mono: resolved_modes.set(config.mode.key, config.mode.colorScheme); break
+      case STRATS.custom: config.mode.keys.forEach(({ key, colorScheme }) => resolved_modes.set(key, colorScheme)); break
       case STRATS.light_dark: Object.entries(config.mode.keys).forEach(([key, i]) => {
-          if (typeof i !== 'string') i.forEach(({ key, colorScheme }) => color_schemes.set(key, colorScheme))
-          else if (Object.values(COLOR_SCHEMES).includes(key as Color_Scheme)) color_schemes.set(i, key as Color_Scheme)
+          if (typeof i !== 'string') i.forEach(({ key, colorScheme }) => resolved_modes.set(key, colorScheme))
+          else if (Object.values(COLOR_SCHEMES).includes(key as Color_Scheme)) resolved_modes.set(i, key as Color_Scheme)
         }); break
       default: break
     }
-    return color_schemes
+    return resolved_modes
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region VALUES - sanitizer ---------------------------------------------------------------------
@@ -328,12 +328,72 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return { is_handled, available, preferred, fallback, previous, candidate, next: { ...next, is_updated, is_stale, is_reverted }, did_execute }
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region RM - resolver --------------------------------------------------------------------------
+  function resolve_RM() {
+    if (!(config.mode && config.mode.strategy === STRATS.light_dark && config.mode.enableSystem)) return undefined
+    const supports_CSPref = window.matchMedia('(prefers-color-scheme').media !== 'not all'
+    const resolved_CS = supports_CSPref ? (window.matchMedia('(prefers-color-scheme').matches && window.matchMedia('(prefers-color-scheme: dark').matches ? 'dark' : 'light') : resolved_modes.get(config.mode.fallback)
+    return resolved_CS
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region RM - getter ----------------------------------------------------------------------------
+  function get_RM({ mode }: { mode: Nullable<string> }) {
+    if (!config.mode || !mode) return undefined
+    
+    const is_system = config.mode.strategy === STRATS.light_dark && config.mode.enableSystem && mode === config.mode.keys.system
+    return is_system ? resolve_RM() : resolved_modes.get(mode)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region RM - sanitizer -------------------------------------------------------------------------
+  function sanitize_RM({ mode, candidate }: { mode: Nullable<string>; candidate: Nullable<string> }): CS_Sanitization {
+    const { is_handled: is_mode_handled, sanitized } = sanitize_SM({ candidate: mode })
+    const correct = get_RM({ mode: sanitized.value })
+
+    const is_correct_defined = !!correct
+    const is_candidate_provided = !!candidate
+    const is_correct = is_correct_defined && is_candidate_provided ? candidate === correct : undefined
+    const is_reverted = !is_correct
+    const is_resolved = sanitized.is_system
+
+    return { is_mode_handled, mode: sanitized, candidate, is_correct, correct, is_reverted, is_resolved }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region RM - update handler --------------------------------------------------------------------
+  function handle_RM_update({ mode, retriever, setter }: { mode: Nullable<string>; retriever: () => string; setter: (value: UndefinedOr<string>) => void }) {
+    const { is_mode_handled, mode: used_mode, candidate: previous, is_correct: is_previous_correct, correct, is_resolved } = sanitize_RM({ mode, candidate: retriever() })
+
+    const is_updated = !previous !== !correct || previous !== correct
+    const did_execute = is_updated
+    if (did_execute) setter(correct)
+
+    return {
+      is_mode_handled,
+      mode: used_mode,
+      previous: { value: previous, is_correct: is_previous_correct },
+      next: { value: correct, is_resolved, is_updated },
+      did_execute,
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - updater ---------------------------------------------------------------------------
+  function update_CS({ mode }: { mode: Nullable<string> }): CS_Update {
+    return handle_RM_update({ mode, retriever: () => html.style.colorScheme, setter: v => html.style.colorScheme = v ?? ''})
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region MC - updater ---------------------------------------------------------------------------
+  function update_MC({ mode }: { mode: Nullable<string> }) {
+    const RM = get_RM({ mode })
+    Object.values(COLOR_SCHEMES).forEach((i) => html.classList.toggle(i, i === RM))
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
   function init() {
     const retrieved_values = retrieve_SVs()
     update_SVs({ new_values: retrieved_values }, { active: true })
     update_TAs({ new_values: retrieved_values }, { active: true })
     update_SM({ new_value: retrieved_values.get('mode') }, { active: true })
+    update_CS({ mode: retrieved_values.get('mode') })
+    update_MC({ mode: retrieved_values.get('mode') })
   }
   // #endregion -------------------------------------------------------------------------------------
   init()
