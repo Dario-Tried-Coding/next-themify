@@ -1,5 +1,5 @@
 import { Color_Scheme } from './constants'
-import { CS_Sanitization, CS_Update, Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
+import { CS_Sanitization, CS_Update, Custom_SE, Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -153,7 +153,9 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region VALUES - change handler ----------------------------------------------------------------
-  function handle_values({ old_values, new_values, setter }: { old_values: Map<string, string>; new_values: Map<string, string>; setter: (values: Map<string, string>) => void }, { active }: { active: boolean }): Values_Update_Report {
+  function handle_values({ new_values, setter, ...opts }: { new_values: Map<string, string>; setter: (values: Map<string, string>) => void } & ({ getter: () => Map<string, string> } | { old_values: Map<string, string> })): Values_Update_Report {
+    const active = 'getter' in opts
+    const old_values = active ? opts.getter() : opts.old_values
     const { ctx, sanitization } = sanitize_values({ candidate_values: new_values, fallback_values: old_values })
 
     // prettier-ignore
@@ -220,17 +222,28 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     if (did_execute) setter(resolved)
     return { ctx, report, did_update, did_reverte, did_execute, values: { candidates, candidates_unavailable, candidates_implicit, candidates_ignored, previous, previous_unavailable, previous_missing, previous_pruned, resolved, updated, stale, reverted } }
   }
-  // #endregion -----------------------------------------------------------------------------------------
+  // #endregion --------------------------------------------------------------------------------------
   // #region SVs - retriever -------------------------------------------------------------------------
   function retrieve_SVs() {
     return json_to_map(localStorage.getItem(config_SK))
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region SV - updater ---------------------------------------------------------------------------
-  function update_SVs({ new_values }: { new_values: Map<string, string> }, { active }: { active: boolean }) {
-    const old_values = retrieve_SVs()
-    const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(values)))
-    return handle_values({ new_values, old_values, setter }, { active })
+  // #region SVs - updater --------------------------------------------------------------------------
+  function update_SVs({ new_values, old_values }: { new_values: Map<string, string>; old_values?: Map<string, string> }) {
+    const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => {
+      localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(values)))
+      dispatch_custom_SE({ key: config_SK, newValue: JSON.stringify(Object.fromEntries(values)), oldValue: JSON.stringify(Object.fromEntries(old_values ?? retrieve_SVs())) })
+    }
+    return handle_values(old_values ? { new_values, old_values, setter } : { new_values, getter: retrieve_SVs, setter })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SVs - change handler -------------------------------------------------------------------
+  function handle_SVs_change({ new_values, old_values }: { new_values: Map<string, string>; old_values: Map<string, string> }) {
+    const { did_execute } = update_SVs({ new_values, old_values })
+    if (did_execute) return
+
+    update_TAs({ new_values })
+    update_SM({ new_value: new_values.get('mode') })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region TA - retriever -------------------------------------------------------------------------
@@ -247,10 +260,9 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region TAs - updater --------------------------------------------------------------------------
-  function update_TAs({ new_values }: { new_values: Map<string, string> }, { active }: { active: boolean }) {
-    const old_values = retrieve_TAs()
+  function update_TAs({ new_values, old_values }: { new_values: Map<string, string>; old_values?: Map<string, string> }) {
     const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => values.forEach((value, prop) => html.setAttribute(`data-${prop}`, value))
-    return handle_values({ new_values, old_values, setter }, { active })
+    return handle_values(old_values ? { new_values, old_values, setter } : { new_values, getter: retrieve_TAs, setter })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region SM - retriever -------------------------------------------------------------------------
@@ -314,18 +326,32 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region SM - updater ---------------------------------------------------------------------------
-  function update_SM({ new_value }: { new_value: Nullable<string> }, { active }: { active: boolean }): SM_Update {
-    const old_value = retrieve_SM()
-    const { is_handled, available, preferred, fallback, candidate_fallback: previous, candidate, sanitized: next } = sanitize_SM({ candidate: new_value, candidate_fallback: old_value })
+  function update_SM({ new_value, old_value }: { new_value: Nullable<string>; old_value?: Nullable<string> }): SM_Update {
+    const active = old_value === undefined
+    const candidate_fallback = active ? retrieve_SM() : old_value
+    const { is_handled, available, preferred, fallback, candidate_fallback: previous, candidate, sanitized: next } = sanitize_SM({ candidate: new_value, candidate_fallback })
 
     const is_updated = !previous.value !== !next.value || previous.value !== next.value
     const is_stale = next.value === previous.value
     const is_reverted = !candidate.is_available
 
     const did_execute = (active ? is_updated : is_reverted) ?? false
-    if (did_execute) localStorage.setItem(mode_SK, next.value as NonNullable<typeof next.value>)
+    if (did_execute) {
+      localStorage.setItem(mode_SK, next.value as NonNullable<typeof next.value>)
+      dispatch_custom_SE({ key: mode_SK, newValue: next.value, oldValue: candidate_fallback })
+    }
 
     return { is_handled, available, preferred, fallback, previous, candidate, next: { ...next, is_updated, is_stale, is_reverted }, did_execute }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region SM - change handler --------------------------------------------------------------------
+  function handle_SM_change({ new_value, old_value }: { new_value: Nullable<string>; old_value: Nullable<string> }) {
+    const { did_execute } = update_SM({ new_value, old_value })
+    if (did_execute) return
+
+    update_CS({ mode: new_value })
+    update_MC({ mode: new_value })
+    update_SVs({ new_values: new Map(new_value ? [['mode', new_value]] : []) })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region RM - resolver --------------------------------------------------------------------------
@@ -339,7 +365,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #region RM - getter ----------------------------------------------------------------------------
   function get_RM({ mode }: { mode: Nullable<string> }) {
     if (!config.mode || !mode) return undefined
-    
+
     const is_system = config.mode.strategy === STRATS.light_dark && config.mode.enableSystem && mode === config.mode.keys.system
     return is_system ? resolve_RM() : resolved_modes.get(mode)
   }
@@ -377,7 +403,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion -------------------------------------------------------------------------------------
   // #region CS - updater ---------------------------------------------------------------------------
   function update_CS({ mode }: { mode: Nullable<string> }): CS_Update {
-    return handle_RM_update({ mode, retriever: () => html.style.colorScheme, setter: v => html.style.colorScheme = v ?? ''})
+    return handle_RM_update({ mode, retriever: () => html.style.colorScheme, setter: (v) => (html.style.colorScheme = v ?? '') })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region MC - updater ---------------------------------------------------------------------------
@@ -386,14 +412,37 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     Object.values(COLOR_SCHEMES).forEach((i) => html.classList.toggle(i, i === RM))
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region CUSTOM_SE - dispatcher -----------------------------------------------------------------
+  function dispatch_custom_SE({ key, newValue, oldValue }: Custom_SE['detail']) {
+    const event = new CustomEvent(custom_SEK, { detail: { key, newValue, oldValue } })
+    window.dispatchEvent(event)
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region NATIVE_SE - listener -------------------------------------------------------------------
+  function native_SE_listener({ key, newValue, oldValue }: StorageEvent) {
+    if (key === mode_SK) handle_SM_change({ new_value: newValue, old_value: oldValue })
+    else if (key === config_SK) handle_SVs_change({ new_values: json_to_map(newValue), old_values: json_to_map(oldValue) })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CUSTOM_SE - listener -------------------------------------------------------------------
+  function custom_SE_listener(e: Custom_SE) {
+    const { key, newValue, oldValue } = e.detail
+
+    if (key === mode_SK) handle_SM_change({ new_value: newValue, old_value: oldValue })
+    else if (key === config_SK) handle_SVs_change({ new_values: json_to_map(newValue), old_values: json_to_map(oldValue) })
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region INITIALIZATION -------------------------------------------------------------------------
   function init() {
     const retrieved_values = retrieve_SVs()
-    update_SVs({ new_values: retrieved_values }, { active: true })
-    update_TAs({ new_values: retrieved_values }, { active: true })
-    update_SM({ new_value: retrieved_values.get('mode') }, { active: true })
+    update_SVs({ new_values: retrieved_values })
+    update_TAs({ new_values: retrieved_values })
+    update_SM({ new_value: retrieved_values.get('mode') })
     update_CS({ mode: retrieved_values.get('mode') })
     update_MC({ mode: retrieved_values.get('mode') })
+
+    window.addEventListener('storage', native_SE_listener)
+    window.addEventListener(custom_SEK, custom_SE_listener as EventListener)
   }
   // #endregion -------------------------------------------------------------------------------------
   init()
