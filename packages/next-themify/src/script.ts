@@ -1,5 +1,5 @@
 import { Color_Scheme } from './constants'
-import { CS_Sanitization, CS_Update, Custom_SE, Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
+import { CS_Update, Custom_SE, RM_Getter, RM_Sanitization, RM_Update, Script_Params, SM_Sanitization, SM_Update, Value_Sanitization, Value_Update_Report, Values_Sanitization, Values_Update_Report } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
 export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, MODES, COLOR_SCHEMES } }: Script_Params) {
@@ -240,6 +240,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #region SVs - change handler -------------------------------------------------------------------
   function handle_SVs_change({ new_values, old_values }: { new_values: Map<string, string>; old_values: Map<string, string> }) {
     const { did_execute } = update_SVs({ new_values, old_values })
+    console.log('handle_SVs_change', { did_execute })
     if (did_execute) return
 
     update_TAs({ new_values })
@@ -268,6 +269,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #region TAs - change handler ---------------------------------------------------------------------
   function handle_TAs_change({ new_values, old_values }: { new_values: Map<string, string>; old_values: Map<string, string> }) {
     const { did_execute } = update_TAs({ new_values, old_values })
+    console.log('handle_TAs_change', { did_execute })
     if (did_execute) return
 
     update_SVs({ new_values })
@@ -363,9 +365,11 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     const is_stale = next.value === previous.value
     const is_reverted = !candidate.is_available
 
-    const did_execute = (active ? is_updated : is_reverted) ?? false
+    const did_execute = is_handled ? ((active ? is_updated : is_reverted) ?? false) : !!retrieve_SM()
     if (did_execute) {
-      localStorage.setItem(mode_SK, next.value as NonNullable<typeof next.value>)
+      if (!is_handled) localStorage.removeItem(mode_SK)
+      else localStorage.setItem(mode_SK, next.value as NonNullable<typeof next.value>)
+
       dispatch_custom_SE({ key: mode_SK, newValue: next.value, oldValue: candidate_fallback })
     }
 
@@ -375,10 +379,12 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #region SM - change handler --------------------------------------------------------------------
   function handle_SM_change({ new_value, old_value }: { new_value: Nullable<string>; old_value: Nullable<string> }) {
     const { did_execute } = update_SM({ new_value, old_value })
+    console.log('handle_SM_change', { did_execute })
     if (did_execute) return
 
-    update_CS({ mode: new_value })
-    update_MC({ mode: new_value })
+    const { RM } = get_RM(new_value)
+    update_CS({ mode: new_value, new_value: RM })
+    update_MC({ mode: new_value, new_value: RM })
     update_SVs({ new_values: new Map(new_value ? [['mode', new_value]] : []) })
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -391,19 +397,21 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region RM - getter ----------------------------------------------------------------------------
-  function get_RM({ mode }: { mode: Nullable<string> }) {
-    if (!config.mode || !mode) return undefined
+  function get_RM(mode: Nullable<string>): RM_Getter {
+    const is_mode_handled = is_handled_prop('mode')
+    const is_mode_available = is_mode_handled ? is_available('mode', mode) : undefined
+    const is_mode_system = is_mode_handled ? config.mode!.strategy === STRATS.light_dark && config.mode!.enableSystem && mode === config.mode!.keys.system : undefined
+    const RM = is_mode_available ? (is_mode_system ? resolve_RM() : resolved_modes.get(mode!)) : undefined
 
-    const is_system = config.mode.strategy === STRATS.light_dark && config.mode.enableSystem && mode === config.mode.keys.system
-    return is_system ? resolve_RM() : resolved_modes.get(mode)
+    return { is_mode_handled, mode: { value: mode, is_available: is_mode_available, is_system: is_mode_system }, RM }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region RM - sanitizer -------------------------------------------------------------------------
-  function sanitize_RM({ mode, candidate }: { mode: Nullable<string>; candidate: Nullable<string> }): CS_Sanitization {
-    const { is_handled: is_mode_handled, sanitized } = sanitize_SM({ candidate: mode })
-    const correct = get_RM({ mode: sanitized.value })
+  function sanitize_RM({ mode, candidate }: { mode: Nullable<string>; candidate: Nullable<string> }): RM_Sanitization {
+    const { sanitized } = sanitize_SM({ candidate: mode })
+    const { is_mode_handled, RM: correct } = get_RM(sanitized.value)
 
-    const is_correct_defined = !!correct
+    const is_correct_defined = is_mode_handled
     const is_candidate_provided = !!candidate
     const is_correct = is_correct_defined && is_candidate_provided ? candidate === correct : undefined
     const is_reverted = !is_correct
@@ -412,45 +420,90 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return { is_mode_handled, mode: sanitized, candidate, is_correct, correct, is_reverted, is_resolved }
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region RM - update handler --------------------------------------------------------------------
-  function handle_RM_update({ mode, retriever, setter }: { mode: Nullable<string>; retriever: () => string; setter: (value: UndefinedOr<string>) => void }) {
-    const { is_mode_handled, mode: used_mode, candidate: previous, is_correct: is_previous_correct, correct, is_resolved } = sanitize_RM({ mode, candidate: retriever() })
+  // #region RM - updater ---------------------------------------------------------------------------
+  function update_RM({ mode, new_value, setter, ...opts }: { mode: Nullable<string>; new_value: Nullable<string>; setter: (v: UndefinedOr<Color_Scheme>) => void } & ({ old_value: Nullable<string> } | { retriever: () => Nullable<string> })): RM_Update {
+    const active = 'retriever' in opts
+    const { candidate: previous, is_correct: is_prev_correct } = sanitize_RM({ mode, candidate: active ? opts.retriever() : opts.old_value })
+    const { is_mode_handled, mode: used_mode, candidate, is_correct: is_cand_correct, correct, is_resolved } = sanitize_RM({ mode, candidate: new_value ?? get_RM(mode).RM })
 
     const is_updated = !previous !== !correct || previous !== correct
-    const did_execute = is_updated
+    const is_reverted = !is_cand_correct
+    const did_execute = active ? is_updated : is_reverted
     if (did_execute) setter(correct)
 
     return {
       is_mode_handled,
       mode: used_mode,
-      previous: { value: previous, is_correct: is_previous_correct },
-      next: { value: correct, is_resolved, is_updated },
+      previous: { value: previous, is_correct: is_prev_correct },
+      candidate: { value: candidate, is_correct: is_cand_correct },
+      next: { value: correct, is_resolved, is_updated, is_reverted },
       did_execute,
     }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region CS - updater ---------------------------------------------------------------------------
-  function update_CS({ mode }: { mode: Nullable<string> }): CS_Update {
-    return handle_RM_update({ mode, retriever: () => html.style.colorScheme, setter: (v) => (html.style.colorScheme = v ?? '') })
+  function update_CS({ mode, new_value, old_value }: { mode: Nullable<string>; new_value: Nullable<string>; old_value?: Nullable<string> }): CS_Update {
+    const retriever = () => html.style.colorScheme
+    const setter: Parameters<typeof update_RM>[0]['setter'] = (v) => (html.style.colorScheme = v ?? '')
+    return update_RM(old_value ? { mode, new_value, old_value, setter } : { mode, new_value, retriever, setter })
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region MC - toggler ---------------------------------------------------------------------------
-  function toggle_MC(...args: Parameters<typeof DOMTokenList.prototype.toggle>): ReturnType<typeof DOMTokenList.prototype.toggle>  {
-    return html.classList.toggle(...args)
+  // #region CS - change handler --------------------------------------------------------------------
+  function handle_CS_change({ mode, new_value, old_value }: { mode: Nullable<string>; new_value: Nullable<string>; old_value: Nullable<string> }) {
+    const { did_execute } = update_CS({ mode, new_value, old_value })
+    console.log('handle_CS_change', { did_execute })
+    if (did_execute) return
+
+    update_MC({ mode, new_value })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region CS - mutation handler ------------------------------------------------------------------
+  function handle_CS_mutation(mutations: MutationRecord[]) {
+    for (const { attributeName, oldValue: old_value } of mutations) {
+      if (attributeName !== 'style') continue
+      const new_value = html.style.colorScheme
+      handle_CS_change({ mode: retrieve_SM(), new_value, old_value })
+    }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region MC - updater ---------------------------------------------------------------------------
-  function update_MC({ mode }: { mode: Nullable<string> }) {
-    const RM = get_RM({ mode })
-    Object.values(COLOR_SCHEMES).forEach((i) => toggle_MC(i, i === RM))
+  function update_MC({ mode, new_value, old_value }: { mode: Nullable<string>; new_value: Nullable<string>; old_value?: Nullable<string> }) {
+    const retriever = () => {
+      const has_dark = html.classList.contains(COLOR_SCHEMES.dark)
+      const has_light = html.classList.contains(COLOR_SCHEMES.light)
+      if (has_dark) return COLOR_SCHEMES.dark
+      if (has_light) return COLOR_SCHEMES.light
+      return undefined
+    }
+
+    const setter: Parameters<typeof update_RM>[0]['setter'] = (MC) => {
+      if (!MC) {
+        html.classList.remove(COLOR_SCHEMES.dark, COLOR_SCHEMES.light)
+        return
+      }
+
+      html.classList.toggle(COLOR_SCHEMES.dark, MC === COLOR_SCHEMES.dark)
+      html.classList.toggle(COLOR_SCHEMES.light, MC === COLOR_SCHEMES.light)
+    }
+
+    return update_RM(old_value ? { mode, new_value, old_value, setter } : { mode, new_value, retriever, setter })
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region MC - change handler --------------------------------------------------------------------
+  function handle_MC_change({ mode, new_value, old_value }: { mode: Nullable<string>; new_value: Nullable<string>; old_value?: Nullable<string> }) {
+    const { did_execute } = update_MC({ mode, new_value, old_value })
+    console.log('handle_MC_change', { did_execute })
+    if (did_execute) return
+
+    update_CS({ mode, new_value })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region MC - mutation handler ------------------------------------------------------------------
   function handle_MC_mutation(mutations: MutationRecord[]) {
-    for (const { attributeName, oldValue } of mutations) {
+    for (const { attributeName, oldValue: old_value } of mutations) {
       if (attributeName !== 'class') continue
       const new_value = html.className
-      console.log({ attributeName, oldValue, new_value })
+      handle_MC_change({ mode: retrieve_SM(), new_value, old_value })
     }
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -479,9 +532,13 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     const retrieved_values = retrieve_SVs()
     update_SVs({ new_values: retrieved_values })
     update_TAs({ new_values: retrieved_values })
+    
+    const SM = retrieved_values.get('mode')
     update_SM({ new_value: retrieved_values.get('mode') })
-    update_CS({ mode: retrieved_values.get('mode') })
-    update_MC({ mode: retrieved_values.get('mode') })
+
+    const {RM} = get_RM(SM)
+    update_CS({ mode: SM, new_value: RM })
+    update_MC({ mode: SM, new_value: RM })
 
     window.addEventListener('storage', native_SE_listener)
     window.addEventListener(custom_SEK, custom_SE_listener as EventListener)
@@ -491,6 +548,9 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
     const MC_observer = new MutationObserver(handle_MC_mutation)
     MC_observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: ['class'] })
+
+    const CS_observer = new MutationObserver(handle_CS_mutation)
+    CS_observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: ['style'] })
   }
   // #endregion -------------------------------------------------------------------------------------
   init()

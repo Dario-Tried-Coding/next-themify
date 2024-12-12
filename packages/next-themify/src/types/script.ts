@@ -84,7 +84,12 @@ export type SM_Update = Pick<SM_Sanitization, 'is_handled' | 'available' | 'pref
   did_execute: boolean
 }
 
-export type CS_Sanitization = {
+export type RM_Getter = {
+  is_mode_handled: boolean
+  mode: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
+  RM: UndefinedOr<Color_Scheme>
+}
+export type RM_Sanitization = {
   is_mode_handled: boolean
   mode: SM_Sanitization['sanitized']
   candidate: Nullable<string>
@@ -93,7 +98,14 @@ export type CS_Sanitization = {
   is_reverted: UndefinedOr<boolean>
   is_resolved: UndefinedOr<boolean>
 }
-export type CS_Update = Pick<CS_Sanitization, 'is_mode_handled' | 'mode'> & {
+export type RM_Update = Pick<RM_Sanitization, 'is_mode_handled' | 'mode'> & {
+  previous: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
+  candidate: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
+  next: { value: UndefinedOr<Color_Scheme>; is_resolved: UndefinedOr<boolean>; is_updated: boolean; is_reverted: UndefinedOr<boolean> }
+  did_execute: boolean
+}
+
+export type CS_Update = Pick<RM_Sanitization, 'is_mode_handled' | 'mode'> & {
   previous: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
   next: { value: UndefinedOr<Color_Scheme>; is_resolved: UndefinedOr<boolean>; is_updated: boolean }
   did_execute: boolean
