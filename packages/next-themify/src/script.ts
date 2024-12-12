@@ -264,6 +264,34 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     const setter: Parameters<typeof handle_values>[0]['setter'] = (values) => values.forEach((value, prop) => html.setAttribute(`data-${prop}`, value))
     return handle_values(old_values ? { new_values, old_values, setter } : { new_values, getter: retrieve_TAs, setter })
   }
+  // #endregion ---------------------------------------------------------------------------------------
+  // #region TAs - change handler ---------------------------------------------------------------------
+  function handle_TAs_change({ new_values, old_values }: { new_values: Map<string, string>; old_values: Map<string, string> }) {
+    const { did_execute } = update_TAs({ new_values, old_values })
+    if (did_execute) return
+
+    update_SVs({ new_values })
+    update_SM({ new_value: new_values.get('mode') })
+  }
+  // #endregion ---------------------------------------------------------------------------------------
+  // #region TAs - mutation handler -------------------------------------------------------------------
+  function handle_TAs_mutation(mutations: MutationRecord[]) {
+    const new_values = new Map<string, string>()
+    const old_values = new Map<string, string>()
+
+    for (const { type, attributeName, oldValue: old_value } of mutations) {
+      const is_attribute = type === 'attributes'
+      const is_TA = is_attribute && attributeName?.startsWith('data-') && Object.keys(config).some((k) => attributeName === `data-${k}`)
+      if (!is_TA) continue
+
+      const prop = attributeName?.replace('data-', '') as string
+      const new_value = html.getAttribute(attributeName as string)
+      if (new_value) new_values.set(prop, new_value)
+      if (old_value) old_values.set(prop, old_value)
+    }
+
+    handle_TAs_change({ new_values, old_values })
+  }
   // #endregion -------------------------------------------------------------------------------------
   // #region SM - retriever -------------------------------------------------------------------------
   function retrieve_SM() {
@@ -406,10 +434,24 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return handle_RM_update({ mode, retriever: () => html.style.colorScheme, setter: (v) => (html.style.colorScheme = v ?? '') })
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region MC - toggler ---------------------------------------------------------------------------
+  function toggle_MC(...args: Parameters<typeof DOMTokenList.prototype.toggle>): ReturnType<typeof DOMTokenList.prototype.toggle>  {
+    return html.classList.toggle(...args)
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region MC - updater ---------------------------------------------------------------------------
   function update_MC({ mode }: { mode: Nullable<string> }) {
     const RM = get_RM({ mode })
-    Object.values(COLOR_SCHEMES).forEach((i) => html.classList.toggle(i, i === RM))
+    Object.values(COLOR_SCHEMES).forEach((i) => toggle_MC(i, i === RM))
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region MC - mutation handler ------------------------------------------------------------------
+  function handle_MC_mutation(mutations: MutationRecord[]) {
+    for (const { attributeName, oldValue } of mutations) {
+      if (attributeName !== 'class') continue
+      const new_value = html.className
+      console.log({ attributeName, oldValue, new_value })
+    }
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region CUSTOM_SE - dispatcher -----------------------------------------------------------------
@@ -443,6 +485,12 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
     window.addEventListener('storage', native_SE_listener)
     window.addEventListener(custom_SEK, custom_SE_listener as EventListener)
+
+    const TAs_observer = new MutationObserver(handle_TAs_mutation)
+    TAs_observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: Object.keys(config).map((k) => `data-${k}`) })
+
+    const MC_observer = new MutationObserver(handle_MC_mutation)
+    MC_observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: ['class'] })
   }
   // #endregion -------------------------------------------------------------------------------------
   init()

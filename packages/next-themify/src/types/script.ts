@@ -1,4 +1,4 @@
-import { Config } from '.'
+import { Config, Light_Dark_Mode_Strat, Mono_Mode_Strat } from '.'
 import { Color_Scheme, COLOR_SCHEMES, MODES, STATIC, STRATS } from '../constants'
 import { Nullable, UndefinedOr } from './utils'
 
@@ -104,3 +104,5 @@ export type Custom_SE = CustomEvent<{
   newValue: Nullable<string>
   oldValue: Nullable<string>
 }>
+
+export type Mutation_Changes = Record<string, string[]>
