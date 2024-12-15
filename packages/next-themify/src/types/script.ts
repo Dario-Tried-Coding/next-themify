@@ -1,6 +1,6 @@
-import { Config, Light_Dark_Mode_Strat, Mono_Mode_Strat } from '.'
+import { Config } from '.'
 import { Color_Scheme, COLOR_SCHEMES, MODES, STATIC, STRATS } from '../constants'
-import { Nullable, UndefinedOr } from './utils'
+import { Nullable, NullOr, UndefinedOr } from './utils'
 
 export type Script_Params = {
   config_SK: string
@@ -9,14 +9,11 @@ export type Script_Params = {
   config: Config<STATIC>
   constants: {
     STRATS: typeof STRATS
-    MODES: typeof MODES
     COLOR_SCHEMES: typeof COLOR_SCHEMES
   }
 }
 
 export type Handled_Values = Map<string, string>
-type Default_Values = Map<string, string>
-type Available_Values = Map<string, Set<string>>
 
 type Ctx = {
   handled_props: Set<string>
@@ -28,80 +25,45 @@ export type Value_Sanitization = {
   prop: { prop: string; is_handled: boolean }
   available: Set<string>
   preferred: UndefinedOr<string>
-  candidate_fallback: { is_provided: boolean; value: UndefinedOr<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
-  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
-  candidate: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
-  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
+  candidate_fallback: { is_provided: boolean; value: Nullable<string> }
+  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean> }
+  candidate: { is_provided: boolean; value: Nullable<string> }
+  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>, is_system?: UndefinedOr<boolean> }
 }
 export type Values_Sanitization = {
-  ctx: Ctx
-  performed_on: Map<string, string>
+  performed_on: Map<string, NullOr<string>>
   are_ready_to_use: boolean
   sanitization: Map<string, Value_Sanitization>
 }
 
-export type Value_Update_Report = Omit<Value_Sanitization, 'candidate' | 'sanitized' | 'candidate_fallback' | 'fallback'> & {
-  previous: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
-  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean> }
-  candidate: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
-  next: { value: UndefinedOr<string>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_updated: UndefinedOr<boolean>; is_reverted: UndefinedOr<boolean> }
+export type Value_Change_Report = Pick<Value_Sanitization, 'prop' | 'available' | 'preferred'> & {
+  previous: { is_provided: boolean; value: Nullable<string> }
+  candidate: { value: Nullable<string> }
+  current: { value: UndefinedOr<string>; is_updated: boolean; is_reverted: boolean }
+  did_execute: boolean
 }
-export type Values_Update_Report = {
-  ctx: Ctx
-  report: Map<string, Value_Update_Report>
-  values: {
-    candidates: Map<string, string>
-    candidates_unavailable: Map<string, string>
-    candidates_implicit: Map<string, string>
-    candidates_ignored: Map<string, string>
-    previous: Map<string, string>
-    previous_unavailable: Map<string, string>
-    previous_missing: Set<string>
-    previous_pruned: Map<string, string>
-    resolved: Map<string, string>
-    updated: Map<string, UndefinedOr<string>>
-    stale: Map<string, string>
-    reverted: Map<string, UndefinedOr<string>>
-  }
+export type Values_Change_Report = {
+  report: Map<string, Value_Change_Report>
+  current: Map<string, UndefinedOr<string>>
   did_update: boolean
   did_reverte: boolean
   did_execute: boolean
 }
 
-export type SM_Sanitization = {
+export type SM_Sanitization = Omit<Value_Sanitization, 'prop'> & {
   is_handled: boolean
-  available: Set<string>
-  preferred: UndefinedOr<string>
-  candidate_fallback: { is_provided: boolean; value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
-  fallback: { value: UndefinedOr<string>; is_resolved: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
-  candidate: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
-  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
-}
-export type SM_Update = Pick<SM_Sanitization, 'is_handled' | 'available' | 'preferred' | 'fallback'> & {
-  previous: SM_Sanitization['candidate_fallback']
-  candidate: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_preferred: UndefinedOr<boolean>; is_fallback: UndefinedOr<boolean> }
-  next: SM_Sanitization['sanitized'] & { is_updated: boolean; is_stale: UndefinedOr<boolean> }
-  did_execute: boolean
 }
 
-export type RM_Getter = {
-  is_mode_handled: boolean
-  mode: { value: Nullable<string>; is_available: UndefinedOr<boolean>; is_system: UndefinedOr<boolean> }
-  RM: UndefinedOr<Color_Scheme>
-}
 export type RM_Sanitization = {
   is_mode_handled: boolean
   mode: SM_Sanitization['sanitized']
-  candidate: Nullable<string>
-  is_correct: UndefinedOr<boolean>
-  correct: UndefinedOr<Color_Scheme>
-  is_reverted: UndefinedOr<boolean>
-  is_resolved: UndefinedOr<boolean>
+  candidate: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
+  correct: { value: UndefinedOr<Color_Scheme>; is_reverted: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
 }
-export type RM_Update = Pick<RM_Sanitization, 'is_mode_handled' | 'mode'> & {
+export type RM_Change_Report = Pick<RM_Sanitization, 'is_mode_handled' | 'mode'> & {
   previous: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
   candidate: { value: Nullable<string>; is_correct: UndefinedOr<boolean> }
-  next: { value: UndefinedOr<Color_Scheme>; is_resolved: UndefinedOr<boolean>; is_updated: boolean; is_reverted: UndefinedOr<boolean> }
+  current: { value: UndefinedOr<Color_Scheme>; is_updated: boolean; is_reverted: UndefinedOr<boolean>; is_resolved: UndefinedOr<boolean> }
   did_execute: boolean
 }
 
@@ -113,8 +75,8 @@ export type CS_Update = Pick<RM_Sanitization, 'is_mode_handled' | 'mode'> & {
 
 export type Custom_SE = CustomEvent<{
   key: string
-  newValue: Nullable<string>
-  oldValue: Nullable<string>
+  newValue: NullOr<string>
+  oldValue: NullOr<string>
 }>
 
 export type Mutation_Changes = Record<string, string[]>

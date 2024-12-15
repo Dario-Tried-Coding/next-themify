@@ -1,5 +1,12 @@
 # test
 
+## 0.0.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @dariotriedcoding/next-themify@0.0.5
+
 ## 0.1.4
 
 ### Patch Changes

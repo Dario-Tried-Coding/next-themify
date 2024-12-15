@@ -12,10 +12,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = {theme: ['custom-1', 'custom-2']} as const satisfies Keys
+  const keys = {theme: ['custom-1', 'custom-2'], radius: ['custom-radius-1', 'custom-radius-2']} as const satisfies Keys
 
   return (
-    <html lang='en' suppressHydrationWarning style={{colorScheme: 'light'}}>
+    <html lang='en' suppressHydrationWarning>
       <body>
         <ThemeProvider<typeof keys>
           config={{
@@ -35,6 +35,11 @@ export default function RootLayout({
               keys: ['custom-1', 'custom-2'],
               preferred: 'custom-2'
             },
+            radius: {
+              strategy: 'multi',
+              keys: ['custom-radius-1', 'custom-radius-2'],
+              preferred: 'custom-radius-2'
+            }
           }}
         >
           {children}
