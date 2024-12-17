@@ -2,13 +2,16 @@ import { Color_Scheme } from './constants'
 import { Custom_SE, RM_Change_Report, RM_Sanitization, Script_Params, SM_Sanitization, Value_Change_Report, Value_Sanitization, Values_Change_Report, Values_Sanitization } from './types/script'
 import { Nullable, NullOr, UndefinedOr } from './types/utils'
 
-export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS,  COLOR_SCHEMES } }: Script_Params) {
+export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, COLOR_SCHEMES } }: Script_Params) {
   const html = document.documentElement
 
   const handled_props = get_handled_props()
   const available_values = get_available_values()
   const preferred_values = get_preferred_values()
   const resolved_modes = get_resolved_modes()
+
+  let is_processing_queue = false
+  const event_queue: Array<StorageEvent | Custom_SE> = []
 
   // #region HELPERS --------------------------------------------------------------------------------
   function json_to_map(input: Nullable<string>) {
@@ -151,8 +154,8 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return { performed_on: candidate_values, are_ready_to_use, sanitization }
   }
   // #endregion --------------------------------------------------------------------------------------
-  // #region VALUE - change handler ------------------------------------------------------------------
-  function handle_value_change({ prop: target_prop, candidate: candidate_value, setter, ...opts }: { prop: string; candidate: Nullable<string>; setter: (prop: string, value: UndefinedOr<string>) => void } & ({ previous: Nullable<string> } | { getter: () => Nullable<string> })): Value_Change_Report {
+  // #region VALUE - updater -------------------------------------------------------------------------
+  function update_value({ prop: target_prop, candidate: candidate_value, setter, ...opts }: { prop: string; candidate: Nullable<string>; setter: (prop: string, value: UndefinedOr<string>) => void } & ({ previous: Nullable<string> } | { getter: () => Nullable<string> })): Value_Change_Report {
     const active = 'getter' in opts
     const candidate_fallback_value = active ? opts.getter() : opts.previous
 
@@ -166,8 +169,8 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return { prop, available, preferred, previous, candidate, current: { value: current.value, is_updated, is_reverted }, did_execute }
   }
   // #endregion --------------------------------------------------------------------------------------
-  // #region VALUES - change handler -----------------------------------------------------------------
-  function handle_values_change({ candidate_values, setter, ...opts }: { candidate_values: Map<string, NullOr<string>>; setter: (values: Map<string, UndefinedOr<string>>) => void } & ({ getter: () => Map<string, NullOr<string>> } | { previous_values: Map<string, NullOr<string>> })): Values_Change_Report {
+  // #region VALUES - updater ------------------------------------------------------------------------
+  function update_values({ candidate_values, setter, ...opts }: { candidate_values: Map<string, NullOr<string>>; setter: (values: Map<string, UndefinedOr<string>>) => void } & ({ getter: () => Map<string, NullOr<string>> } | { previous_values: Map<string, NullOr<string>> })): Values_Change_Report {
     const active = 'getter' in opts
     const candidate_fallback_values = active ? opts.getter() : opts.previous_values
     const { sanitization } = sanitize_values({ candidate_values, candidate_fallback_values })
@@ -179,7 +182,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
       candidate_fallback: { value: previous },
     } of sanitization.values()) {
       const setter = () => {}
-      report.set(prop, handle_value_change(active ? { prop, candidate, getter: () => candidate_fallback_values.get(prop), setter } : { prop, candidate, previous, setter }))
+      report.set(prop, update_value(active ? { prop, candidate, getter: () => candidate_fallback_values.get(prop), setter } : { prop, candidate, previous, setter }))
     }
 
     const did_update = [...report.values()].some(({ current }) => current.is_updated)
@@ -199,16 +202,19 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion --------------------------------------------------------------------------------------
   // #region SVs - updater ---------------------------------------------------------------------------
   function update_SVs({ candidate_values, previous_values }: { candidate_values: Map<string, NullOr<string>>; previous_values?: Map<string, NullOr<string>> }) {
-    console.log('update_SVs', {candidate_values, previous_values})
+    const active = !previous_values
     const getter = retrieve_SVs
-    const setter: Parameters<typeof handle_values_change>[0]['setter'] = (values) => {
-      const filtered_entries = Array.from(values.entries()).filter(([prop, value]) => !!value)
-      localStorage.setItem(config_SK, JSON.stringify(Object.fromEntries(filtered_entries)))
-      dispatch_custom_SE({ key: config_SK, newValue: JSON.stringify(Object.fromEntries(filtered_entries)), oldValue: JSON.stringify(Object.fromEntries(previous_values ?? getter())) })
+    const setter: Parameters<typeof update_values>[0]['setter'] = (values) => {
+      const stringified_values = (values: Map<string, NullOr<string>>) => JSON.stringify(Object.fromEntries(values))
+
+      const filtered_entries = new Map(Array.from(values.entries()).filter(([prop, value]) => !!value) as [string, string][])
+      localStorage.setItem(config_SK, stringified_values(filtered_entries))
+
+      dispatch_custom_SE({ key: config_SK, newValue: stringified_values(filtered_entries), oldValue: active ? stringified_values(getter()) : stringified_values(candidate_values) })
     }
 
     const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) }
-    return handle_values_change(options)
+    return update_values(options)
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region SVs - change handler -------------------------------------------------------------------
@@ -227,13 +233,13 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion --------------------------------------------------------------------------------------
   // #region TA - updater ----------------------------------------------------------------------------
   function update_TA({ prop, candidate_value, previous_value }: { prop: string; candidate_value: NullOr<string>; previous_value?: NullOr<string> }) {
-    const setter: Parameters<typeof handle_value_change>[0]['setter'] = (prop, value) => {
+    const setter: Parameters<typeof update_value>[0]['setter'] = (prop, value) => {
       if (value) html.setAttribute(`data-${prop}`, value)
       else html.removeAttribute(`data-${prop}`)
     }
 
     const options = { prop, candidate: candidate_value, setter, ...(previous_value !== undefined ? { previous: previous_value } : { getter: () => retrieve_TA(prop) }) }
-    return handle_value_change(options)
+    return update_value(options)
   }
   // #endregion --------------------------------------------------------------------------------------
   // #region TA - change handler ---------------------------------------------------------------------
@@ -268,7 +274,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #region TAs - updater ---------------------------------------------------------------------------
   function update_TAs({ candidate_values, previous_values }: { candidate_values: Map<string, NullOr<string>>; previous_values?: Map<string, NullOr<string>> }) {
     const getter = retrieve_TAs
-    const setter: Parameters<typeof handle_values_change>[0]['setter'] = (values) => {
+    const setter: Parameters<typeof update_values>[0]['setter'] = (values) => {
       for (const [prop, value] of values) {
         if (value) html.setAttribute(`data-${prop}`, value)
         else html.removeAttribute(`data-${prop}`)
@@ -276,7 +282,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     }
 
     const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) }
-    return handle_values_change(options)
+    return update_values(options)
   }
   // #endregion --------------------------------------------------------------------------------------
   // #region SM - retriever --------------------------------------------------------------------------
@@ -293,15 +299,17 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion --------------------------------------------------------------------------------------
   // #region SM - updater ----------------------------------------------------------------------------
   function update_SM({ candidate, previous }: { candidate: Nullable<string>; previous?: Nullable<string> }) {
+    const active = previous === undefined
     const getter = retrieve_SM
-    const setter: Parameters<typeof handle_value_change>[0]['setter'] = (prop, value) => {
+    const setter: Parameters<typeof update_value>[0]['setter'] = (prop, value) => {
       if (value) localStorage.setItem(mode_SK, value)
       else localStorage.removeItem(mode_SK)
-      dispatch_custom_SE({ key: mode_SK, newValue: value ?? null, oldValue: previous === undefined ? getter() : previous })
+
+      dispatch_custom_SE({ key: mode_SK, newValue: value ?? null, oldValue: active ? getter() : (candidate ?? null) })
     }
 
     const options = { prop: 'mode', candidate, setter, ...(previous !== undefined ? { previous } : { getter }) }
-    return handle_value_change(options)
+    return update_value(options)
   }
   // #endregion --------------------------------------------------------------------------------------
   // #region SM - change handler ---------------------------------------------------------------------
@@ -422,20 +430,37 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     handle_MC_change({ mode: retrieve_SM(), candidate, previous })
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region SEs - handler --------------------------------------------------------------------------
+  function handle_SEs(event: StorageEvent | Custom_SE) {
+    console.log('event', event)
+    event_queue.push(event)
+    if (is_processing_queue) return
+
+    is_processing_queue = true
+    while (event_queue.length) {
+      const event = event_queue.shift()
+      if (!event) continue
+
+      if (event instanceof StorageEvent) handle_native_SE(event)
+      else handle_custom_SE(event)
+    }
+    is_processing_queue = false
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region NATIVE_SE - handler --------------------------------------------------------------------
+  function handle_native_SE({ key, newValue, oldValue }: StorageEvent) {
+    if (key === mode_SK) handle_SM_change({ candidate: newValue, previous: oldValue })
+    else if (key === config_SK) handle_SVs_change({ candidate_values: json_to_map(newValue), previous_values: json_to_map(oldValue) })
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region CUSTOM_SE - dispatcher -----------------------------------------------------------------
   function dispatch_custom_SE({ key, newValue, oldValue }: Custom_SE['detail']) {
     const event = new CustomEvent(custom_SEK, { detail: { key, newValue, oldValue } })
     window.dispatchEvent(event)
   }
   // #endregion -------------------------------------------------------------------------------------
-  // #region NATIVE_SE - listener -------------------------------------------------------------------
-  function native_SE_listener({ key, newValue, oldValue }: StorageEvent) {
-    if (key === mode_SK) handle_SM_change({ candidate: newValue, previous: oldValue })
-    else if (key === config_SK) handle_SVs_change({ candidate_values: json_to_map(newValue), previous_values: json_to_map(oldValue) })
-  }
-  // #endregion -------------------------------------------------------------------------------------
-  // #region CUSTOM_SE - listener -------------------------------------------------------------------
-  function custom_SE_listener(e: Custom_SE) {
+  // #region CUSTOM_SE - handler --------------------------------------------------------------------
+  function handle_custom_SE(e: Custom_SE) {
     const { key, newValue, oldValue } = e.detail
 
     if (key === mode_SK) handle_SM_change({ candidate: newValue, previous: oldValue })
@@ -464,8 +489,8 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     update_CS({ mode: SM, candidate: RM })
     update_MC({ mode: SM, candidate: RM })
 
-    window.addEventListener('storage', native_SE_listener)
-    window.addEventListener(custom_SEK, custom_SE_listener as EventListener)
+    window.addEventListener('storage', handle_SEs)
+    window.addEventListener(custom_SEK, handle_SEs as EventListener)
 
     const observer = new MutationObserver(handle_mutations)
     observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: [...Object.keys(config).map((k) => `data-${k}`), 'style', 'class'] })
