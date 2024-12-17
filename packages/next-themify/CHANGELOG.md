@@ -1,5 +1,11 @@
 # @dariotriedcoding/next-themify
 
+## 0.0.6
+
+### Patch Changes
+
+- React hook
+
 ## 0.0.5
 
 ### Patch Changes

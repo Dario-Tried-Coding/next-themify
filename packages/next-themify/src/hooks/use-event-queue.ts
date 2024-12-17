@@ -8,7 +8,6 @@ export function useEventQueue(processor: EventProcessor) {
   const isProcessing = useRef(false)
 
   const enqueueEvent = useCallback((e: Custom_SE | StorageEvent) => {
-    console.log('enqueueEvent', e)
     queue.current.push(e)
     processQueue()
   }, [])
@@ -19,8 +18,7 @@ export function useEventQueue(processor: EventProcessor) {
     isProcessing.current = true
     while (queue.current.length > 0) {
       const e = queue.current.shift()
-      if (!e) continue
-      processor(e)
+      if (e) processor(e)
     }
     isProcessing.current = false
   }, [processor])

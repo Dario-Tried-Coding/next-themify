@@ -1,15 +1,17 @@
 'use client'
 
-import { createContext, PropsWithChildren, useContext, useEffect, useState, useTransition } from 'react'
+import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
 import { COLOR_SCHEMES, CONFIG_SK, CUSTOM_SEK, MODE_SK, STRATS } from './constants'
+import { useEventQueue } from './hooks/use-event-queue'
+import { useIsMounted } from './hooks/use-is-mounted'
 import { script } from './script'
 import { Config, Keys } from './types'
-import { Custom_SE, Handled_Values, Script_Params } from './types/script'
-import { useIsMounted } from './hooks/use-is-mounted'
-import { useEventQueue } from './hooks/use-event-queue'
+import { Custom_SE, Script_Params } from './types/script'
 
 // CONTEXT
-interface Context extends Handled_Values {}
+interface Context {
+  values: Record<string, string> | null
+}
 const Context = createContext<Context | null>(null)
 
 // THEME PROVIDER
@@ -19,7 +21,7 @@ interface ThemeProviderProps<K extends Keys> extends PropsWithChildren {
   config: Config<K>
 }
 export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, config, children }: ThemeProviderProps<K>) {
-  const [theme, setTheme] = useState<Record<string, string> | null>(null)
+  const [values, setValues] = useState<Record<string, string> | null>(null)
   const isMounted = useIsMounted()
 
   const configSK = config_sk || CONFIG_SK
@@ -28,7 +30,7 @@ export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, confi
     if (!isMounted) return
 
     const retrievedValues = localStorage.getItem(configSK)
-    setTheme(retrievedValues ? JSON.parse(retrievedValues) : null)
+    setValues(retrievedValues ? JSON.parse(retrievedValues) : null)
   }, [isMounted])
 
   const { enqueueEvent } = useEventQueue((e: StorageEvent | Custom_SE) => {
@@ -36,7 +38,7 @@ export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, confi
 
     if (key === configSK) {
       const newValues = newValue ? JSON.parse(newValue) : null
-      setTheme(newValues)
+      setValues(newValues)
     }
   })
 
@@ -58,15 +60,14 @@ export function ThemeProvider<K extends Keys = null>({ config_sk, mode_sk, confi
   } satisfies Script_Params)
 
   return (
-    <Context.Provider value={null}>
+    <Context.Provider value={{ values }}>
       <script dangerouslySetInnerHTML={{ __html: `(${script.toString()})(${scriptArgs})` }} />
-      <pre>{JSON.stringify(theme)}</pre>
       {children}
     </Context.Provider>
   )
 }
 
-export const useTheme = () => {
+export const useValues = () => {
   const context = useContext(Context)
   if (!context) throw new Error('useTheme must be used within a ThemeProvider')
   return context

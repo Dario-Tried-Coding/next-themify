@@ -10,8 +10,28 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   const preferred_values = get_preferred_values()
   const resolved_modes = get_resolved_modes()
 
-  let is_processing_queue = false
-  const event_queue: Array<StorageEvent | Custom_SE> = []
+  // #region SEs - class ----------------------------------------------------------------------------
+  class SEs_queue {
+    private _queue: Array<StorageEvent | Custom_SE> = []
+
+    get queue() {
+      return this._queue
+    }
+
+    push(event: StorageEvent | Custom_SE) {
+      this._queue.push(event)
+      this.process_queue()
+    }
+
+    private process_queue() {
+      while (this._queue.length > 0) {
+        const event = this.queue.shift()
+        if (event) event instanceof StorageEvent ? handle_native_SE(event) : handle_custom_SE(event)
+      }
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  const events_queue = new SEs_queue()
 
   // #region HELPERS --------------------------------------------------------------------------------
   function json_to_map(input: Nullable<string>) {
@@ -432,19 +452,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion -------------------------------------------------------------------------------------
   // #region SEs - handler --------------------------------------------------------------------------
   function handle_SEs(event: StorageEvent | Custom_SE) {
-    console.log('event', event)
-    event_queue.push(event)
-    if (is_processing_queue) return
-
-    is_processing_queue = true
-    while (event_queue.length) {
-      const event = event_queue.shift()
-      if (!event) continue
-
-      if (event instanceof StorageEvent) handle_native_SE(event)
-      else handle_custom_SE(event)
-    }
-    is_processing_queue = false
+    events_queue.push(event)
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region NATIVE_SE - handler --------------------------------------------------------------------
