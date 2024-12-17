@@ -199,6 +199,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   // #endregion --------------------------------------------------------------------------------------
   // #region SVs - updater ---------------------------------------------------------------------------
   function update_SVs({ candidate_values, previous_values }: { candidate_values: Map<string, NullOr<string>>; previous_values?: Map<string, NullOr<string>> }) {
+    console.log('update_SVs', {candidate_values, previous_values})
     const getter = retrieve_SVs
     const setter: Parameters<typeof handle_values_change>[0]['setter'] = (values) => {
       const filtered_entries = Array.from(values.entries()).filter(([prop, value]) => !!value)
@@ -216,7 +217,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     if (did_execute) return
 
     update_TAs({ candidate_values })
-    // update_SM({ new_value: candidate_values.get('mode') })
+    update_SM({ candidate: candidate_values.get('mode') })
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region TA - retriever -------------------------------------------------------------------------
@@ -291,7 +292,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
   }
   // #endregion --------------------------------------------------------------------------------------
   // #region SM - updater ----------------------------------------------------------------------------
-  function update_SM({ candidate, previous }: { candidate: NullOr<string>; previous?: NullOr<string> }) {
+  function update_SM({ candidate, previous }: { candidate: Nullable<string>; previous?: Nullable<string> }) {
     const getter = retrieve_SM
     const setter: Parameters<typeof handle_value_change>[0]['setter'] = (prop, value) => {
       if (value) localStorage.setItem(mode_SK, value)
@@ -314,14 +315,6 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     update_SVs({ candidate_values: new Map(candidate ? [['mode', candidate]] : []) })
   }
   // #endregion --------------------------------------------------------------------------------------
-  // #region RM - resolver --------------------------------------------------------------------------
-  function resolve_RM() {
-    if (!(config.mode && config.mode.strategy === STRATS.light_dark && config.mode.enableSystem)) return undefined
-    const supports_CSPref = window.matchMedia('(prefers-color-scheme').media !== 'not all'
-    const resolved_CS = supports_CSPref ? (window.matchMedia('(prefers-color-scheme: dark').matches ? 'dark' : 'light') : resolved_modes.get(config.mode.fallback)
-    return resolved_CS
-  }
-  // #endregion -------------------------------------------------------------------------------------
   // #region RM - sanitizer -------------------------------------------------------------------------
   function sanitize_RM({ mode, candidate }: { mode: Nullable<string>; candidate: Nullable<string> }): RM_Sanitization {
     const { is_handled: is_mode_handled, sanitized: sanitized_mode } = sanitize_SM({ candidate: mode })
