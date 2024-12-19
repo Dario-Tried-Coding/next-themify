@@ -1,6 +1,6 @@
 import { ThemeProvider } from '@dariotriedcoding/next-themify'
-import { Keys } from '@dariotriedcoding/next-themify/types'
 import type { Metadata } from 'next'
+import { config, TConfig, TKeys } from '../lib/next-themify'
 
 export const metadata: Metadata = {
   title: 'Create Next App',
@@ -12,38 +12,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const keys = {theme: ['custom-1', 'custom-2'], radius: ['custom-radius-1', 'custom-radius-2']} as const satisfies Keys
-
   return (
     <html lang='en' suppressHydrationWarning>
       <body>
-        <ThemeProvider<typeof keys>
-          config={{
-            mode: {
-              strategy: 'light_dark',
-              enableSystem: true,
-              preferred: 'system',
-              fallback: 'light',
-              keys: {
-                light: 'light',
-                dark: 'dark',
-                system: 'system',
-              },
-            },
-            theme: {
-              strategy: 'multi',
-              keys: ['custom-1', 'custom-2'],
-              preferred: 'custom-2'
-            },
-            radius: {
-              strategy: 'multi',
-              keys: ['custom-radius-1', 'custom-radius-2'],
-              preferred: 'custom-radius-2'
-            }
-          }}
-        >
-          {children}
-        </ThemeProvider>
+        <ThemeProvider<TKeys, TConfig> config={config}>{children}</ThemeProvider>
       </body>
     </html>
   )

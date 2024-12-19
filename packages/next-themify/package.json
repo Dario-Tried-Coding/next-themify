@@ -1,6 +1,6 @@
 {
   "name": "@dariotriedcoding/next-themify",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "A Next.js library to acheive custom and easy-to-control themed interfaces.",
   "private": false,
   "main": "./dist/index.js",

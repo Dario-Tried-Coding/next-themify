@@ -183,7 +183,7 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
     const is_updated = !previous.value !== !current.value || previous.value !== current.value
     const is_reverted = current.is_reverted ?? false
-    const did_execute = active ? is_updated : is_reverted
+    const did_execute = prop.is_handled ? active ? is_updated : is_reverted : false
 
     if (did_execute) setter(prop.prop, current.value)
     return { prop, available, preferred, previous, candidate, current: { value: current.value, is_updated, is_reverted }, did_execute }
