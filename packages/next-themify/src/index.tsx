@@ -18,16 +18,23 @@ const Context = createContext<Context<Config<Keys>> | null>(null)
 
 // THEME PROVIDER
 interface ThemeProviderProps<K extends Keys, C extends Config<K>> extends PropsWithChildren {
-  config_sk?: string
-  mode_sk?: string
   config: C
+  storageKeys?: {
+    config?: string
+    mode?: string
+  }
+  transitions?: {
+    disable_on_change?: boolean
+    nonce?: string
+  }
 }
-export function ThemeProvider<K extends Keys, C extends Config<K>>({ config_sk, mode_sk, config, children }: ThemeProviderProps<K, C>) {
+export function ThemeProvider<K extends Keys, C extends Config<K>>({ config, storageKeys, transitions, children }: ThemeProviderProps<K, C>) {
   const [values, setValues] = useState<Values<C> | null>(null)
   const isMounted = useIsMounted()
 
-  const configSK = config_sk || CONFIG_SK
+  const configSK = storageKeys?.config || CONFIG_SK
 
+  // #region VALUES - sync -----------------------------------------------------------------------
   useEffect(() => {
     if (!isMounted) return
 
@@ -52,7 +59,9 @@ export function ThemeProvider<K extends Keys, C extends Config<K>>({ config_sk, 
       window.removeEventListener(CUSTOM_SEK, handler as EventListener)
     }
   }, [])
+  // #endregion ------------------------------------------------------------------------------------
 
+  // #region VALUE - updater ----------------------------------------------------------------------
   const dispatchCustomSE = useCallback(({ newValue, oldValue }: { newValue: string; oldValue: string }) => {
     const event = new CustomEvent<Custom_SE['detail']>(CUSTOM_SEK, { detail: { key: configSK, newValue, oldValue } })
     window.dispatchEvent(event)
@@ -62,14 +71,20 @@ export function ThemeProvider<K extends Keys, C extends Config<K>>({ config_sk, 
     const newValues = { ...values, [prop]: value }
     dispatchCustomSE({ newValue: JSON.stringify(newValues), oldValue: JSON.stringify(values) })
   }
+  // #endregion ------------------------------------------------------------------------------------
 
+  // #region SCRIPT - args -------------------------------------------------------------------------
   const scriptArgs = JSON.stringify({
-    config_SK: configSK,
-    mode_SK: mode_sk || MODE_SK,
+    storage_keys: {
+      config_SK: configSK,
+      mode_SK: storageKeys?.mode || MODE_SK,
+    },
     custom_SEK: CUSTOM_SEK,
     config: config,
     constants: { STRATS, COLOR_SCHEMES },
+    transitions: transitions || {},
   } satisfies Script_Params)
+  // #endregion ------------------------------------------------------------------------------------
 
   return (
     // @ts-ignore

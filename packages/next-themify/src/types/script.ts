@@ -3,13 +3,19 @@ import { Color_Scheme, COLOR_SCHEMES, MODES, STATIC, STRATS } from '../constants
 import { Nullable, NullOr, UndefinedOr } from './utils'
 
 export type Script_Params = {
-  config_SK: string
-  mode_SK: string
+  storage_keys: {
+    config_SK: string
+    mode_SK: string
+  }
   custom_SEK: string
   config: Config<STATIC>
   constants: {
     STRATS: typeof STRATS
     COLOR_SCHEMES: typeof COLOR_SCHEMES
+  },
+  transitions: {
+    disable_on_change?: boolean
+    nonce?: string
   }
 }
 

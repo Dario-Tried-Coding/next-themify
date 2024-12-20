@@ -5,7 +5,11 @@ const keys = { theme: ['custom-1', 'custom-2'], radius: ['custom-radius-1', 'cus
 export type TKeys = typeof keys
 
 export const config = {
-
+  mode: {
+    strategy: 'mono',
+    key: 'default',
+    colorScheme: 'dark'
+  },
   theme: {
     strategy: 'multi',
     keys: ['custom-1', 'custom-2'],

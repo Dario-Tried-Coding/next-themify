@@ -2,7 +2,7 @@ import { Color_Scheme } from './constants'
 import { Custom_SE, RM_Change_Report, RM_Sanitization, Script_Params, SM_Sanitization, Value_Change_Report, Value_Sanitization, Values_Change_Report, Values_Sanitization } from './types/script'
 import { Nullable, NullOr, UndefinedOr } from './types/utils'
 
-export function script({ config_SK, mode_SK, custom_SEK, config, constants: { STRATS, COLOR_SCHEMES } }: Script_Params) {
+export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, config, constants: { STRATS, COLOR_SCHEMES }, transitions: { disable_on_change: disable_transitions_on_change, nonce } }: Script_Params) {
   const html = document.documentElement
 
   const handled_props = get_handled_props()
@@ -97,6 +97,24 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     return resolved_mode
   }
   // #endregion -------------------------------------------------------------------------------------
+  // #region ANIMATIONS - disabler ------------------------------------------------------------------
+  function disable_animations(nonce?: string) {
+    if (!disable_transitions_on_change) return
+
+    const css = document.createElement('style')
+    if (nonce) css.setAttribute('nonce', nonce)
+    css.appendChild(document.createTextNode(`*,*::before,*::after{-webkit-transition:none!important;-moz-transition:none!important;-o-transition:none!important;-ms-transition:none!important;transition:none!important}`))
+    document.head.appendChild(css)
+
+    return () => {
+      ;(() => window.getComputedStyle(document.body))()
+
+      setTimeout(() => {
+        document.head.removeChild(css)
+      }, 1)
+    }
+  }
+  // #endregion -------------------------------------------------------------------------------------
   // #region VALUE - sanitizer ----------------------------------------------------------------------
   function sanitize_value({ prop, candidate, candidate_fallback }: { prop: string; candidate: Nullable<string>; candidate_fallback?: Nullable<string> }): Value_Sanitization {
     const is_handled = is_handled_prop(prop)
@@ -160,9 +178,13 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
 
     const is_updated = !previous.value !== !current.value || previous.value !== current.value
     const is_reverted = current.is_reverted ?? false
-    const did_execute = prop.is_handled ? active ? is_updated : is_reverted : false
+    const did_execute = prop.is_handled ? (active ? is_updated : is_reverted) : false
 
-    if (did_execute) setter(prop.prop, current.value)
+    if (did_execute) {
+      const enable_animations_back = disable_animations(nonce)
+      setter(prop.prop, current.value)
+      enable_animations_back?.()
+    }
     return { prop, available, preferred, previous, candidate, current: { value: current.value, is_updated, is_reverted }, did_execute }
   }
   // #endregion --------------------------------------------------------------------------------------
@@ -187,7 +209,12 @@ export function script({ config_SK, mode_SK, custom_SEK, config, constants: { ST
     const did_execute = active ? did_update : did_reverte
 
     const current = new Map([...report.entries()].map(([prop, { current }]) => [prop, current.value]))
-    if (did_execute) setter(current)
+
+    if (did_execute) {
+      const enable_animations_back = disable_animations(nonce)
+      setter(current)
+      enable_animations_back?.()
+    }
 
     return { report, current, did_update, did_reverte, did_execute }
   }
