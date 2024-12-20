@@ -2,7 +2,6 @@
 
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react'
 import { COLOR_SCHEMES, CONFIG_SK, CUSTOM_SEK, MODE_SK, STRATS } from './constants'
-import { useEventQueue } from './hooks/use-event-queue'
 import { useIsMounted } from './hooks/use-is-mounted'
 import { script } from './script'
 import { Config, Keys } from './types'
@@ -36,21 +35,21 @@ export function ThemeProvider<K extends Keys, C extends Config<K>>({ config_sk, 
     setValues(retrievedValues ? JSON.parse(retrievedValues) : null)
   }, [isMounted])
 
-  const { enqueueEvent } = useEventQueue((e: StorageEvent | Custom_SE) => {
-    const { key, newValue } = e instanceof StorageEvent ? e : e.detail
-
-    if (key === configSK) {
-      const newValues = newValue ? JSON.parse(newValue) : null
-      setValues(newValues)
-    }
-  })
-
   useEffect(() => {
-    window.addEventListener('storage', enqueueEvent)
-    window.addEventListener(CUSTOM_SEK, enqueueEvent as EventListener)
+    const handler = (e: StorageEvent | Custom_SE) => {
+      const { key, newValue } = e instanceof StorageEvent ? e : e.detail
+
+      if (key === configSK) {
+        const newValues = newValue ? JSON.parse(newValue) : null
+        setValues(newValues)
+      }
+    }
+
+    window.addEventListener('storage', handler)
+    window.addEventListener(CUSTOM_SEK, handler as EventListener)
     return () => {
-      window.removeEventListener('storage', enqueueEvent)
-      window.removeEventListener(CUSTOM_SEK, enqueueEvent as EventListener)
+      window.removeEventListener('storage', handler)
+      window.removeEventListener(CUSTOM_SEK, handler as EventListener)
     }
   }, [])
 
