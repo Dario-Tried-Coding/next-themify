@@ -1,5 +1,11 @@
 # @dariotriedcoding/next-themify
 
+## 0.0.8
+
+### Patch Changes
+
+- Optional animation disabling on change
+
 ## 0.0.7
 
 ### Patch Changes
