@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "next-themify";
-import { config } from "../lib/next-themify";
+import { ThemeProvider } from "../lib/next-themify";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -14,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body><ThemeProvider config={config}>{children}</ThemeProvider></body>
+      <body><ThemeProvider>{children}</ThemeProvider></body>
     </html>
   );
 }

@@ -111,5 +111,3 @@ export type Values<C extends Config<Keys_Config>> = {
         ? C[P]['keys'][number]
         : never
 }
-
-export type Set_Value<C extends Config<Keys_Config>> = <P extends keyof C, V extends Values<C>[P]>(prop: P, value: V) => void

@@ -5,22 +5,20 @@ import { COLOR_SCHEMES, CONFIG_SK, CUSTOM_SEK, MODE_SK, STRATS } from './constan
 import { useIsMounted } from './hooks/use-is-mounted'
 import { script } from './script'
 import { Config, Keys } from './types'
-import type { Set_Value, Values } from './types/index'
+import type { Values } from './types/index'
 import { Custom_SE, Script_Params } from './types/script'
 import { Prettify } from './types/utils'
 
 // CONTEXT
-export interface Context<C extends Config<Keys>> {
+export interface Context<K extends Keys, C extends Config<K>> {
   values: Prettify<Values<C>> | null
-  setValue: Set_Value<C>
+  setValue: <P extends keyof Prettify<Values<C>>>(prop: P, value: Prettify<Values<C>>[P] | ((curr: Prettify<Values<C>>[P]) => Prettify<Values<C>>[P])) => void
 }
-const Context = createContext<Context<Config<Keys>> | null>(null)
-
-type DinamycValues = Values<Config<Keys>>
+const Context = createContext<Context<any, any> | null>(null)
 
 // THEME PROVIDER
-interface ThemeProviderProps extends PropsWithChildren {
-  config: Config<Keys>
+interface ThemeProviderProps<K extends Keys, C extends Config<K>> extends PropsWithChildren {
+  config: C
   storageKeys?: {
     config?: string
     mode?: string
@@ -30,8 +28,8 @@ interface ThemeProviderProps extends PropsWithChildren {
     nonce?: string
   }
 }
-export function ThemeProvider({ config, storageKeys, transitions, children }: ThemeProviderProps) {
-  const [values, setValues] = useState<DinamycValues | null>(null)
+export function ThemeProvider<K extends Keys, C extends Config<K>>({ config, storageKeys, transitions, children }: ThemeProviderProps<K, C>) {
+  const [values, setValues] = useState<Prettify<Values<C>> | null>(null)
   const isMounted = useIsMounted()
 
   const configSK = storageKeys?.config || CONFIG_SK
@@ -68,9 +66,11 @@ export function ThemeProvider({ config, storageKeys, transitions, children }: Th
     const event = new CustomEvent<Custom_SE['detail']>(CUSTOM_SEK, { detail: { key: configSK, newValue, oldValue } })
     window.dispatchEvent(event)
   }, [])
-  
-  const setValue = <P extends keyof DinamycValues>(prop: P, value: DinamycValues[P] extends string[] ? DinamycValues[P][number] : never) => {
-    const newValues = { ...values, [prop]: value }
+
+  const setValue: Context<K, C>['setValue'] = (prop, value) => {
+    const currentValue = values?.[prop]
+    const newValue = typeof value === 'function' ? (value as (currentValue: Prettify<Values<C>>[typeof prop] | undefined) => Prettify<Values<C>>[typeof prop])(currentValue) : value
+    const newValues = { ...values, [prop]: newValue }
     dispatchCustomSE({ newValue: JSON.stringify(newValues), oldValue: JSON.stringify(values) })
   }
   // #endregion ------------------------------------------------------------------------------------
@@ -89,7 +89,6 @@ export function ThemeProvider({ config, storageKeys, transitions, children }: Th
   // #endregion ------------------------------------------------------------------------------------
 
   return (
-    // @ts-ignore
     <Context.Provider value={{ values, setValue }}>
       <script dangerouslySetInnerHTML={{ __html: `(${script.toString()})(${scriptArgs})` }} />
       {children}
@@ -97,8 +96,8 @@ export function ThemeProvider({ config, storageKeys, transitions, children }: Th
   )
 }
 
-export const useNextThemify = <K extends Keys, C extends Config<K>>() => {
-  const context = useContext(Context) as Context<C> | null
+export const useTheming = <K extends Keys, C extends Config<K>>() => {
+  const context = useContext(Context) as Context<K, C> | null
   if (!context) throw new Error('useTheme must be used within a ThemeProvider')
   return context
 }

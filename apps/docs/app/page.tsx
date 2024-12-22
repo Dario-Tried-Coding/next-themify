@@ -10,7 +10,7 @@ export default function Home() {
       <br />
       {values && (
         <>
-          <button onClick={() => setValue('theme', values.theme === 'custom-1' ? 'custom-2' : 'custom-1')}>change theme</button>
+          <button onClick={() => setValue('theme', (curr) => (curr === 'custom-1' ? 'custom-2' : 'custom-1'))}>change theme</button>
         </>
       )}
     </div>
