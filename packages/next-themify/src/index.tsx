@@ -16,9 +16,11 @@ export interface Context<C extends Config<Keys>> {
 }
 const Context = createContext<Context<Config<Keys>> | null>(null)
 
+type DinamycValues = Values<Config<Keys>>
+
 // THEME PROVIDER
-interface ThemeProviderProps<K extends Keys, C extends Config<K>> extends PropsWithChildren {
-  config: C
+interface ThemeProviderProps extends PropsWithChildren {
+  config: Config<Keys>
   storageKeys?: {
     config?: string
     mode?: string
@@ -28,8 +30,8 @@ interface ThemeProviderProps<K extends Keys, C extends Config<K>> extends PropsW
     nonce?: string
   }
 }
-export function ThemeProvider<K extends Keys, C extends Config<K>>({ config, storageKeys, transitions, children }: ThemeProviderProps<K, C>) {
-  const [values, setValues] = useState<Values<C> | null>(null)
+export function ThemeProvider({ config, storageKeys, transitions, children }: ThemeProviderProps) {
+  const [values, setValues] = useState<DinamycValues | null>(null)
   const isMounted = useIsMounted()
 
   const configSK = storageKeys?.config || CONFIG_SK
@@ -67,7 +69,7 @@ export function ThemeProvider<K extends Keys, C extends Config<K>>({ config, sto
     window.dispatchEvent(event)
   }, [])
   
-  const setValue = <P extends keyof Values<C>>(prop: P, value: Values<C>[P] extends string[] ? Values<C>[P][number] : never) => {
+  const setValue = <P extends keyof DinamycValues>(prop: P, value: DinamycValues[P] extends string[] ? DinamycValues[P][number] : never) => {
     const newValues = { ...values, [prop]: value }
     dispatchCustomSE({ newValue: JSON.stringify(newValues), oldValue: JSON.stringify(values) })
   }
