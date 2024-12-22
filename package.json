@@ -2,7 +2,7 @@
   "name": "next-themify-repo",
   "private": true,
   "scripts": {
-    "CI": "turbo run lint test build --filter=next-themify",
+    "CI": "turbo lint test build --filter=next-themify",
     "release": "pnpm run CI && changeset publish",
     "build": "turbo build",
     "dev": "turbo dev",
