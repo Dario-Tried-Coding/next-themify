@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "CI": "turbo lint test build --filter=next-themify",
-    "release": "pnpm run CI && changeset publish",
+    "publish": "pnpm run CI && changeset publish",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
