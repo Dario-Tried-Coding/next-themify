@@ -1,10 +1,13 @@
 {
-  "name": "my-turborepo",
+  "name": "next-themify-repo",
   "private": true,
   "scripts": {
+    "prerelease": "turbo lint test build --filter=@dariotriedcoding/next-themify",
+    "release": "pnpm run prerelease && changeset publish",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "test": "turbo test",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
