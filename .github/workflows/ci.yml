@@ -38,4 +38,4 @@ jobs:
         run: pnpm install
 
       - name: Build
-        run: pnpm run prerelease
+        run: pnpm run CI
