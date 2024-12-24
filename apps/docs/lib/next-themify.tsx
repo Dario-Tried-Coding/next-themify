@@ -10,6 +10,7 @@ export const config = {
     strategy: 'mono',
     key: 'default',
     colorScheme: 'dark',
+    selector: ['class', 'color-scheme']
   },
   theme: {
     strategy: 'multi',

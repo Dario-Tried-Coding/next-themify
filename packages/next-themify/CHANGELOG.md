@@ -1,5 +1,11 @@
 # next-themify
 
+## 0.0.3
+
+### Patch Changes
+
+- Config obj - add 'selector' prop to mode obj
+
 ## 0.0.2
 
 ### Patch Changes

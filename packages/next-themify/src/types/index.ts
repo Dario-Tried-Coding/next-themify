@@ -26,6 +26,7 @@ export type Keys_Config = AtLeastOne<Keys> | null
 export type Prop = keyof NonNullable<Keys_Config>
 
 // #region Strats ----------------------------------------------------------------------------------------
+export type Selector = 'class' | 'color-scheme'
 export type Mode<Key extends string = string> = {
   key: Key
   colorScheme: Color_Scheme
@@ -37,10 +38,12 @@ export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; 
 // Static -> Mono_Mode_Strat<string>; Default -> Mono_Mode_Strat<PREFERRED>; Dynamic -> Mono_Mode_Strat<'some string'>
 export type Mono_Mode_Strat<Key extends string> = {
   strategy: MONO
+  selector?: Selector | Selector[]
 } & Mode<Key>
 // Static -> Custom_Strat<string[]>; Dynamic -> Custom_Strat<['string1', 'string2']>
 export type Custom_Mode_Strat<Keys extends string[]> = {
   strategy: CUSTOM
+  selector?: Selector | Selector[]
   keys: ToObjects<Keys, Mode>
   preferred: Keys[number]
 }
@@ -49,10 +52,15 @@ export type Custom_Mode_Strat<Keys extends string[]> = {
 // Dynamic -> Light_Dark_Strat<{ light: 'custom light', dark: 'custom dark', system: 'custom system', custom: ['custom 1', 'custom 2'] }>
 export type Light_Dark_Mode_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = {
   strategy: LIGHT_DARK
+  selector?: Selector | Selector[]
 } & (
   | {
       enableSystem: true
-      preferred: (Overrides['light'] extends string ? Overrides['light'] : LIGHT) | (Overrides['dark'] extends string ? Overrides['dark'] : DARK) | (Overrides['system'] extends string ? Overrides['system'] : SYSTEM) | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
+      preferred:
+        | (Overrides['light'] extends string ? Overrides['light'] : LIGHT)
+        | (Overrides['dark'] extends string ? Overrides['dark'] : DARK)
+        | (Overrides['system'] extends string ? Overrides['system'] : SYSTEM)
+        | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
       fallback: (Overrides['light'] extends string ? Overrides['light'] : LIGHT) | (Overrides['dark'] extends string ? Overrides['dark'] : DARK) | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
       keys: {
         light: Overrides['light'] extends string ? Overrides['light'] : LIGHT
@@ -103,9 +111,13 @@ export type Values<C extends Config<Keys_Config>> = {
       : C[P] extends { keys: { key: string }[] }
         ? C[P]['keys'][number]['key']
         : C[P] extends { keys: { light: string; dark: string; system?: string; custom?: string[] } }
-          ? C[P]['keys']['light'] | C[P]['keys']['dark'] | (C[P]['keys']['system'] extends string ? C[P]['keys']['system'] : never) | (C[P]['keys']['custom'] extends { key: string; colorScheme: Color_Scheme }[] ? C[P]['keys']['custom'][number]['key'] : never)
+          ?
+              | C[P]['keys']['light']
+              | C[P]['keys']['dark']
+              | (C[P]['keys']['system'] extends string ? C[P]['keys']['system'] : never)
+              | (C[P]['keys']['custom'] extends { key: string; colorScheme: Color_Scheme }[] ? C[P]['keys']['custom'][number]['key'] : never)
           : never
-    : C[P] extends { key: string}
+    : C[P] extends { key: string }
       ? C[P]['key']
       : C[P] extends { keys: string[] }
         ? C[P]['keys'][number]

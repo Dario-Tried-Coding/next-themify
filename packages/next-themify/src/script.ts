@@ -1,4 +1,5 @@
 import { Color_Scheme } from './constants'
+import { Selector } from './types/index'
 import { Custom_SE, RM_Change_Report, RM_Sanitization, Script_Params, SM_Sanitization, Value_Change_Report, Value_Sanitization, Values_Change_Report, Values_Sanitization } from './types/script'
 import { Nullable, NullOr, UndefinedOr } from './types/utils'
 
@@ -65,6 +66,11 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
   function is_preferred(prop: string, value: NullOr<string>) {
     if (!value) return false
     return preferred_values.get(prop) === value
+  }
+  // #endregion -------------------------------------------------------------------------------------
+  // #region UTILS - mode ---------------------------------------------------------------------------
+  function is_selector_enabled(selector: Selector) {
+    return !config.mode?.selector || config.mode.selector === selector || config.mode.selector.includes(selector)
   }
   // #endregion -------------------------------------------------------------------------------------
   // #region UTILS - resolved modes -----------------------------------------------------------------
@@ -237,7 +243,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
       dispatch_custom_SE({ key: config_SK, newValue: stringified_values(filtered_entries), oldValue: active ? stringified_values(getter()) : stringified_values(candidate_values) })
     }
 
-    const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) }
+    const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) } satisfies Parameters<typeof update_values>[0]
     return update_values(options)
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -262,7 +268,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
       else html.removeAttribute(`data-${prop}`)
     }
 
-    const options = { prop, candidate: candidate_value, setter, ...(previous_value !== undefined ? { previous: previous_value } : { getter: () => retrieve_TA(prop) }) }
+    const options = { prop, candidate: candidate_value, setter, ...(previous_value !== undefined ? { previous: previous_value } : { getter: () => retrieve_TA(prop) }) } satisfies Parameters<typeof update_value>[0]
     return update_value(options)
   }
   // #endregion --------------------------------------------------------------------------------------
@@ -305,7 +311,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
       }
     }
 
-    const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) }
+    const options = { candidate_values, setter, ...(previous_values ? { previous_values } : { getter }) } satisfies Parameters<typeof update_values>[0]
     return update_values(options)
   }
   // #endregion --------------------------------------------------------------------------------------
@@ -332,7 +338,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
       dispatch_custom_SE({ key: mode_SK, newValue: value ?? null, oldValue: active ? getter() : (candidate ?? null) })
     }
 
-    const options = { prop: 'mode', candidate, setter, ...(previous !== undefined ? { previous } : { getter }) }
+    const options = { prop: 'mode', candidate, setter, ...(previous !== undefined ? { previous } : { getter }) } satisfies Parameters<typeof update_value>[0]
     return update_value(options)
   }
   // #endregion --------------------------------------------------------------------------------------
@@ -367,7 +373,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
   }
   // #endregion --------------------------------------------------------------------------------------
   // #region RM - change handler ---------------------------------------------------------------------
-  function handle_RM_change({ mode, candidate: candidate_value, setter, ...opts }: { mode: NullOr<string>; candidate: Nullable<string>; setter: (value: UndefinedOr<string>) => void } & ({ previous: Nullable<string> } | { getter: () => Nullable<string> })): RM_Change_Report {
+  function handle_RM_change({ selector, mode, candidate: candidate_value, setter, ...opts }: { selector: Selector; mode: NullOr<string>; candidate: Nullable<string>; setter: (value: UndefinedOr<string>) => void } & ({ previous: Nullable<string> } | { getter: () => Nullable<string> })): RM_Change_Report {
     const active = 'getter' in opts
 
     // prettier-ignore
@@ -377,7 +383,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
 
     const is_correct_updated = !previous !== !correct || previous !== correct
     const is_correct_reverted = (is_mode_handled ? !is_candidate_correct : undefined) ?? false
-    const did_execute = active ? is_correct_updated : is_correct_reverted
+    const did_execute = is_selector_enabled(selector) ? (active ? is_correct_updated : is_correct_reverted) : false
     if (did_execute) setter(correct)
 
     return {
@@ -400,7 +406,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
     const getter = retrieve_CS
     const setter: Parameters<typeof handle_RM_change>[0]['setter'] = (v) => (html.style.colorScheme = v ?? '')
 
-    const opts = { mode, candidate, setter, ...(previous !== undefined ? { previous } : { getter }) }
+    const opts = { selector: 'color-scheme', mode, candidate, setter, ...(previous !== undefined ? { previous } : { getter }) } satisfies Parameters<typeof handle_RM_change>[0]
     return handle_RM_change(opts)
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -438,7 +444,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
       html.classList.toggle(COLOR_SCHEMES.light, MC === COLOR_SCHEMES.light)
     }
 
-    const opts = { mode, candidate, setter, ...(previous !== undefined ? { previous } : { getter }) }
+    const opts = { selector: 'class', mode, candidate, setter, ...(previous !== undefined ? { previous } : { getter }) } satisfies Parameters<typeof handle_RM_change>[0]
     return handle_RM_change(opts)
   }
   // #endregion -------------------------------------------------------------------------------------
@@ -505,7 +511,7 @@ export function script({ storage_keys: { config_SK, mode_SK }, custom_SEK, confi
     window.addEventListener(custom_SEK, handle_SEs as EventListener)
 
     const observer = new MutationObserver(handle_mutations)
-    observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: [...Object.keys(config).map((k) => `data-${k}`), 'style', 'class'] })
+    observer.observe(html, { attributes: true, attributeOldValue: true, attributeFilter: [...Object.keys(config).map((k) => `data-${k}`), ...(is_selector_enabled('color-scheme') ? ['style'] : []), ...(is_selector_enabled('class') ? ['class'] : [])] })
   }
   // #endregion -------------------------------------------------------------------------------------
   init()
