@@ -1,18 +1,18 @@
-import { Config } from '.'
+import { Static_Config } from './index'
 import { Color_Scheme, COLOR_SCHEMES, STATIC, STRATS } from '../constants'
 import { Nullable, NullOr, UndefinedOr } from './utils'
 
 export type Script_Params = {
-  storage_keys: {
+  keys: {
     config_SK: string
     mode_SK: string
+    custom_SEK: string
   }
-  custom_SEK: string
-  config: Config<STATIC>
+  config: Static_Config
   constants: {
     STRATS: typeof STRATS
     COLOR_SCHEMES: typeof COLOR_SCHEMES
-  },
+  }
   transitions: {
     disable_on_change?: boolean
     nonce?: string
@@ -34,7 +34,7 @@ export type Value_Sanitization = {
   candidate_fallback: { is_provided: boolean; value: Nullable<string> }
   fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean> }
   candidate: { is_provided: boolean; value: Nullable<string> }
-  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>, is_system?: UndefinedOr<boolean> }
+  sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_system?: UndefinedOr<boolean> }
 }
 export type Values_Sanitization = {
   performed_on: Map<string, NullOr<string>>

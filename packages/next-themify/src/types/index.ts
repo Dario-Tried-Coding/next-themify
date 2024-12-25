@@ -1,125 +1,41 @@
-import { Color_Scheme, CUSTOM, DARK, DEFAULT, LIGHT, LIGHT_DARK, MONO, MULTI, STATIC, SYSTEM } from '../constants'
-import { AtLeastOne, IsLiteralArray, ToObjects } from './utils'
+import { Color_Scheme, DARK, LIGHT, SYSTEM } from '../constants'
 
-// #region Keys ------------------------------------------------------------------------------------------
-type Mono_Key = string
-type Custom_Keys = string[]
-type Multi_Keys = string[]
-type Light_Dark_Keys = {
-  light: string
-  dark: string
-  system: string
-  custom: string[]
+type IsLiteralArray<T> = T extends readonly string[] ? (string[] extends T ? false : true) : false
+type ToObjects<T extends string[], ObjType extends { key: string }, Acc extends any[] = []> = IsLiteralArray<T> extends true ? (T extends readonly [infer First extends string, ...infer Rest extends string[]] ? ToObjects<Rest, ObjType, [...Acc, { key: First } & Omit<ObjType, 'key'>]> : Acc) : ObjType[]
+
+type Light_Dark_Keys = { light: string; dark: string; system: string; custom: string[] }
+
+type Values = string | string[] | Partial<Light_Dark_Keys>
+type Keys = Record<string, Values>
+
+type Mode_Prop<V extends Values> = {
+      type: 'mode'
+    } & (V extends string
+      ? { strategy: 'mono'; key: V; colorScheme: Color_Scheme }
+      : V extends string[]
+        ? { strategy: 'multi'; keys: ToObjects<V, { key: string; colorScheme: Color_Scheme }>; preferred: V[number] }
+        : V extends Partial<Light_Dark_Keys>
+          ? {
+              strategy: 'light-dark'
+              keys: { light: V['light'] extends string ? V['light'] : LIGHT; dark: V['dark'] extends string ? V['dark'] : DARK; system: V['system'] extends string ? V['system'] : SYSTEM } & (V['custom'] extends string[] ? { custom: ToObjects<V['custom'], { key: string; colorScheme: Color_Scheme }> } : {})
+              preferred: (V['light'] extends string ? V['light'] : LIGHT) | (V['dark'] extends string ? V['dark'] : DARK) | (V['system'] extends string ? V['system'] : SYSTEM) | (V['custom'] extends string[] ? V['custom'][number] : never)
+              fallback: (V['light'] extends string ? V['light'] : LIGHT) | (V['dark'] extends string ? V['dark'] : DARK) | (V['custom'] extends string[] ? V['custom'][number] : never)
+            }
+          : never)
+type Static_Mode_Prop = {
+  type: 'mode'
+} & ({ strategy: 'mono'; key: string; colorScheme: Color_Scheme } | { strategy: 'multi'; keys: { key: string; colorScheme: Color_Scheme }[]; preferred: string } | { strategy: 'light-dark'; keys: { light: string; dark: string; system: string; custom?: { key: string; colorScheme: Color_Scheme }[] }, preferred: string; fallback: string })
+
+type Generic_Prop<V extends Values> = {
+      type: 'generic'
+    } & (V extends string ? { strategy: 'mono'; key: V } : V extends string[] ? { strategy: 'multi'; keys: V; preferred: V[number] } : never)
+type Static_Generic_Prop = {
+  type: 'generic'
+} & ({ strategy: 'mono'; key: string } | { strategy: 'multi'; keys: string[]; preferred: string })
+
+export type Config<K extends Keys> = {
+  [P in keyof K]: K[P] extends Partial<Light_Dark_Keys> ? Mode_Prop<K[P]> : Mode_Prop<K[P]> | Generic_Prop<K[P]>
 }
-
-type Basic_Key = Mono_Key | Multi_Keys
-type Mode_Key = Mono_Key | Custom_Keys | Partial<Light_Dark_Keys>
-
-type Keys = {
-  theme: Basic_Key
-  mode: Mode_Key
-  radius: Basic_Key
-}
-export type Keys_Config = AtLeastOne<Keys> | null
-
-// #region Prop ------------------------------------------------------------------------------------------
-export type Prop = keyof NonNullable<Keys_Config>
-
-// #region Strats ----------------------------------------------------------------------------------------
-export type Selector = 'class' | 'color-scheme'
-export type Mode<Key extends string = string> = {
-  key: Key
-  colorScheme: Color_Scheme
-}
-
-export type Mono_Strat<Key extends string> = { strategy: MONO; key: Key } // Static -> Mono_Strat<string>; Default -> Mono_Strat<PREFERRED>; Dynamic -> Mono_Strat<'string'>
-export type Multi_Strat<Keys extends string[]> = { strategy: MULTI; keys: Keys; preferred: Keys[number] } // Static -> Multi_Strat<string[]>; Dynamic -> Multi_Strat<['string1', 'string2']>
-
-// Static -> Mono_Mode_Strat<string>; Default -> Mono_Mode_Strat<PREFERRED>; Dynamic -> Mono_Mode_Strat<'some string'>
-export type Mono_Mode_Strat<Key extends string> = {
-  strategy: MONO
-  selector?: Selector | Selector[]
-} & Mode<Key>
-// Static -> Custom_Strat<string[]>; Dynamic -> Custom_Strat<['string1', 'string2']>
-export type Custom_Mode_Strat<Keys extends string[]> = {
-  strategy: CUSTOM
-  selector?: Selector | Selector[]
-  keys: ToObjects<Keys, Mode>
-  preferred: Keys[number]
-}
-// Static -> Light_Dark_Strat<{light: string, dark: string, system: string, custom: string[]}>;
-// Default -> Light_Dark_Strat;
-// Dynamic -> Light_Dark_Strat<{ light: 'custom light', dark: 'custom dark', system: 'custom system', custom: ['custom 1', 'custom 2'] }>
-export type Light_Dark_Mode_Strat<Overrides extends Partial<Light_Dark_Keys> = {}> = {
-  strategy: LIGHT_DARK
-  selector?: Selector | Selector[]
-} & (
-  | {
-      enableSystem: true
-      preferred:
-        | (Overrides['light'] extends string ? Overrides['light'] : LIGHT)
-        | (Overrides['dark'] extends string ? Overrides['dark'] : DARK)
-        | (Overrides['system'] extends string ? Overrides['system'] : SYSTEM)
-        | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
-      fallback: (Overrides['light'] extends string ? Overrides['light'] : LIGHT) | (Overrides['dark'] extends string ? Overrides['dark'] : DARK) | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
-      keys: {
-        light: Overrides['light'] extends string ? Overrides['light'] : LIGHT
-        dark: Overrides['dark'] extends string ? Overrides['dark'] : DARK
-        system: Overrides['system'] extends string ? Overrides['system'] : SYSTEM
-      } & (Overrides['custom'] extends string[] ? (IsLiteralArray<Overrides['custom']> extends true ? { custom: ToObjects<Overrides['custom'], Mode> } : { custom?: Mode[] }) : {})
-    }
-  | {
-      enableSystem: false
-      preferred: (Overrides['light'] extends string ? Overrides['light'] : LIGHT) | (Overrides['dark'] extends string ? Overrides['dark'] : DARK) | (Overrides['custom'] extends string[] ? Overrides['custom'][number] : never)
-      keys: {
-        light: Overrides['light'] extends string ? Overrides['light'] : LIGHT
-        dark: Overrides['dark'] extends string ? Overrides['dark'] : DARK
-      } & (Overrides['custom'] extends string[] ? (IsLiteralArray<Overrides['custom']> extends true ? { custom: ToObjects<Overrides['custom'], Mode> } : { custom?: Mode[] }) : {})
-    }
-)
-
-// #region Config ----------------------------------------------------------------------------------------
-
-// Static Mono -> Generic_Prop<string>; Static Multi -> Generic_Prop<string[]>
-// Default Mono -> Generic_Prop<PREFERRED>
-// Dynamic Mono -> Generic_Prop<'some string'>; Dynamic Multi -> Generic_Prop<['string1', 'string2']>
-type Generic_Prop<K extends Basic_Key> = K extends Mono_Key ? Mono_Strat<K> : K extends Multi_Keys ? Multi_Strat<K> : never
-
-// Static Mono -> Mode_Prop<string>; Static Custom -> Mode_Prop<string[]>; Static Light_Dark -> Mode_Prop<{light: string, dark: string, system: string, custom: string[]}>
-// Default Mono -> Mode_Prop<DEFAULT>; Default Light_Dark -> Mode_Prop<{}>;
-// Dynamic Mono -> Mode_Prop<'some string'>; Dynamic Custom -> Mode_Prop<['string1', 'string2']>; Dynamic Light_Dark -> Mode_Prop<{ light: 'custom light', dark: 'custom dark', system: 'custom system', custom: ['custom 1', 'custom 2'] }>
-type Mode_Prop<K extends Mode_Key> = K extends Mono_Key ? Mono_Mode_Strat<K> : K extends Custom_Keys ? Custom_Mode_Strat<K> : K extends Partial<Light_Dark_Keys> ? Light_Dark_Mode_Strat<K> : never
-
-export type Config<K extends Keys_Config | STATIC = STATIC> = K extends STATIC
-  ? {
-      [P in keyof Keys]?: P extends 'mode' ? Mode_Prop<string> | Mode_Prop<string[]> | Mode_Prop<{ light: string; dark: string; system: string; custom: string[] }> : Generic_Prop<string> | Generic_Prop<string[]>
-    }
-  : K extends NonNullable<Keys_Config>
-    ? {
-        [P in keyof K]-?: P extends 'mode' ? Mode_Prop<NonNullable<K[P]>> : P extends Exclude<Prop, 'mode'> ? Generic_Prop<NonNullable<K[P]>> : never
-      } & {
-        [P in keyof Omit<Keys, keyof K>]?: P extends 'mode' ? Mode_Prop<DEFAULT> | Mode_Prop<{}> : Generic_Prop<DEFAULT>
-      }
-    : AtLeastOne<{
-        [P in keyof Keys]?: P extends 'mode' ? Mode_Prop<DEFAULT> | Mode_Prop<{}> : Generic_Prop<DEFAULT>
-      }>
-
-export type Values<C extends Config<Keys_Config>> = {
-  [P in keyof C]-?: P extends 'mode'
-    ? C[P] extends { key: string }
-      ? C[P]['key']
-      : C[P] extends { keys: { key: string }[] }
-        ? C[P]['keys'][number]['key']
-        : C[P] extends { keys: { light: string; dark: string; system?: string; custom?: string[] } }
-          ?
-              | C[P]['keys']['light']
-              | C[P]['keys']['dark']
-              | (C[P]['keys']['system'] extends string ? C[P]['keys']['system'] : never)
-              | (C[P]['keys']['custom'] extends { key: string; colorScheme: Color_Scheme }[] ? C[P]['keys']['custom'][number]['key'] : never)
-          : never
-    : C[P] extends { key: string }
-      ? C[P]['key']
-      : C[P] extends { keys: string[] }
-        ? C[P]['keys'][number]
-        : never
+export type Static_Config = {
+  [key: string]: Static_Mode_Prop | Static_Generic_Prop
 }
