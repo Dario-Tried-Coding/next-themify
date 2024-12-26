@@ -4,13 +4,11 @@ export type STATIC = 'static-type'
 export const STRATS = {
   mono: 'mono',
   multi: 'multi',
-  light_dark: 'light_dark',
-  custom: 'custom',
+  light_dark: 'light-dark',
 } as const
 export type MONO = (typeof STRATS)['mono']
 export type MULTI = (typeof STRATS)['multi']
 export type LIGHT_DARK = (typeof STRATS)['light_dark']
-export type CUSTOM = (typeof STRATS)['custom']
 
 export type LIGHT = 'light'
 export type DARK = 'dark'

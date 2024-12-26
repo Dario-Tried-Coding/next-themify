@@ -1,5 +1,5 @@
+import { Color_Scheme, COLOR_SCHEMES, STRATS } from '../constants'
 import { Static_Config } from './index'
-import { Color_Scheme, COLOR_SCHEMES, STATIC, STRATS } from '../constants'
 import { Nullable, NullOr, UndefinedOr } from './utils'
 
 export type Script_Params = {
@@ -13,26 +13,15 @@ export type Script_Params = {
     STRATS: typeof STRATS
     COLOR_SCHEMES: typeof COLOR_SCHEMES
   }
-  transitions: {
-    disable_on_change?: boolean
-    nonce?: string
-  }
 }
 
-export type Handled_Values = Map<string, string>
-
-type Ctx = {
-  handled_props: Set<string>
-  available_values: Map<string, Set<string>>
-  preferred_values: Map<string, string>
-}
+export type Sanitize_Value = ({ prop, candidate, fallback }: { prop: string; candidate: NullOr<string>; fallback: UndefinedOr<string> }) => void
 
 export type Value_Sanitization = {
   prop: { prop: string; is_handled: boolean }
   available: Set<string>
   preferred: UndefinedOr<string>
-  candidate_fallback: { is_provided: boolean; value: Nullable<string> }
-  fallback: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean> }
+  fallback: UndefinedOr<string>
   candidate: { is_provided: boolean; value: Nullable<string> }
   sanitized: { value: UndefinedOr<string>; is_reverted: UndefinedOr<boolean>; is_system?: UndefinedOr<boolean> }
 }
