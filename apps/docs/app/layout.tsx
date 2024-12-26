@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "../lib/next-themify";
+import { ThemingProvider } from "../lib/next-themify";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body><ThemeProvider>{children}</ThemeProvider></body>
+    <html lang='en' suppressHydrationWarning>
+      <body><ThemingProvider>{children}</ThemingProvider></body>
     </html>
-  );
+  )
 }

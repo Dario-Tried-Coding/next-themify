@@ -1,6 +1,6 @@
 'use client'
 
-import { useTheming } from '../lib/next-themify'
+import { useTheming } from "../lib/next-themify"
 
 export default function Home() {
   const { values, setValue } = useTheming()

@@ -3,7 +3,7 @@ import { Static_Mode_Prop } from './types/index'
 import { Script_Params } from './types/script'
 import { Nullable, UndefinedOr } from './types/utils'
 
-export function script({ config, constants: { STRATS, COLOR_SCHEMES }, keys: { config_SK, mode_SK, custom_SEK } }: Script_Params) {
+export function script({ config, constants: { STRATS, COLOR_SCHEMES }, keys: { config_SK, mode_SK } }: Script_Params) {
   const html = document.documentElement
 
   const handled_props = get_handled_props()
@@ -136,7 +136,7 @@ export function script({ config, constants: { STRATS, COLOR_SCHEMES }, keys: { c
   // #endregion ------------------------------------------------------------------------------------------------
   // #region COLOR SCHEME --------------------------------------------------------------------------------------
   function set_color_scheme(color_scheme: Color_Scheme) {
-    html.setAttribute('colorScheme', color_scheme)
+    html.style.colorScheme = color_scheme
   }
   // #endregion ------------------------------------------------------------------------------------------------
   // #region MODE CLASS ----------------------------------------------------------------------------------------
@@ -155,7 +155,7 @@ export function script({ config, constants: { STRATS, COLOR_SCHEMES }, keys: { c
     const sanitized_mode_value = Object.entries(sanitized_values).find(([prop, value]) => eventual_mode_prop && prop === eventual_mode_prop[0])?.[1]
     if (sanitized_mode_value) {
       const [prop, strat_obj] = eventual_mode_prop as [string, Static_Mode_Prop]
-      if (strat_obj.store) store_mode(sanitized_mode_value)
+      if (strat_obj.store !== false) store_mode(sanitized_mode_value)
 
       const resolved_mode = resolved_modes[prop]
       if (resolved_mode) {

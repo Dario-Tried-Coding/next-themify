@@ -1,6 +1,3 @@
-export type DEFAULT = 'default'
-export type STATIC = 'static-type'
-
 export const STRATS = {
   mono: 'mono',
   multi: 'multi',

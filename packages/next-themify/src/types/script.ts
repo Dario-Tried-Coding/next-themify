@@ -6,7 +6,6 @@ export type Script_Params = {
   keys: {
     config_SK: string
     mode_SK: string
-    custom_SEK: string
   }
   config: Static_Config
   constants: {
