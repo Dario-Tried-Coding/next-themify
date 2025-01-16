@@ -7,6 +7,7 @@ export type ScriptParams = {
     modeSK: string
     customSEK: string
   }
+  listeners: ('attributes' | 'storage')[]
 }
 
 export type CustomSE = CustomEvent<{

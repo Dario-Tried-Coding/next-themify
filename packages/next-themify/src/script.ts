@@ -1,11 +1,11 @@
 import { CustomSE, ScriptParams } from './types/script'
 
-export function script({ config, keys: { configSK, modeSK, customSEK } }: ScriptParams) {
+export function script({ config, keys: { configSK, modeSK, customSEK }, listeners }: ScriptParams) {
   const html = document.documentElement
 
   const constraints = getConstraints()
   const modeProp = getModeProp()
-  const colorSchemes = getColorSchemes()
+  const resolvedModes = getResolvedModes()
 
   // #region UTILS --------------------------------------------------------------------------------------
   function getConstraints() {
@@ -46,25 +46,25 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
     return { prop, stratObj, selectors, store }
   }
 
-  function getColorSchemes() {
-    const colorSchemes: Map<string, 'light' | 'dark'> = new Map()
+  function getResolvedModes() {
+    const resolvedModes: Map<string, 'light' | 'dark'> = new Map()
 
-    if (!modeProp) return colorSchemes
+    if (!modeProp) return resolvedModes
 
     const { stratObj } = modeProp
     // prettier-ignore
     switch (stratObj?.strategy) {
-      case 'mono': colorSchemes.set(stratObj.key, stratObj.colorScheme); break;
-      case 'multi': Object.entries(stratObj.keys).forEach(([key, colorScheme]) => colorSchemes.set(key, colorScheme)); break;
+      case 'mono': resolvedModes.set(stratObj.key, stratObj.colorScheme); break;
+      case 'multi': Object.entries(stratObj.keys).forEach(([key, colorScheme]) => resolvedModes.set(key, colorScheme)); break;
       case 'system': {
-        colorSchemes.set(stratObj.customKeys?.light ?? 'light', 'light')
-        colorSchemes.set(stratObj.customKeys?.dark ?? 'dark', 'dark')
-        if (stratObj.customKeys?.custom) Object.entries(stratObj.customKeys.custom).forEach(([key, colorScheme]) => colorSchemes.set(key, colorScheme))
+        resolvedModes.set(stratObj.customKeys?.light ?? 'light', 'light')
+        resolvedModes.set(stratObj.customKeys?.dark ?? 'dark', 'dark')
+        if (stratObj.customKeys?.custom) Object.entries(stratObj.customKeys.custom).forEach(([key, colorScheme]) => resolvedModes.set(key, colorScheme))
       }; break;
       default: break;
     }
 
-    return colorSchemes
+    return resolvedModes
   }
 
   function jsonToMap(input: string) {
@@ -135,9 +135,9 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
       const sanitizedMode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
       if (store) setSM(sanitizedMode)
 
-      const colorScheme = getCS(sanitizedMode) as NonNullable<ReturnType<typeof getCS>>
-      if (selectors.includes('colorScheme')) setCS(colorScheme)
-      if (selectors.includes('class')) setMC(colorScheme)
+      const resolvedMode = deriveRM(sanitizedMode) as NonNullable<ReturnType<typeof deriveRM>>
+      if (selectors.includes('colorScheme')) setCS(resolvedMode)
+      if (selectors.includes('class')) setMC(resolvedMode)
     }
   }
 
@@ -149,6 +149,10 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
   }
 
   // #region TAs -----------------------------------------------------------------------------------------
+  function getTA(prop: string) {
+    return html.getAttribute(`data-${prop}`)
+  }
+
   function setTA({ prop, value }: { prop: string; value: string }) {
     html.setAttribute(`data-${prop}`, value)
   }
@@ -159,27 +163,52 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
     }
   }
 
+  function handleTAMutation({ attributeName }: MutationRecord) {
+    const prop = attributeName?.replace('data-', '') as NonNullable<typeof attributeName>
+    const newValue = getTA(prop)
+
+    const currValue = getSVs().get(prop)
+    if (newValue !== currValue) setTA({ prop, value: currValue as NonNullable<typeof currValue> })
+  }
+
   // #region SM ------------------------------------------------------------------------------------------
   function setSM(value: string) {
     localStorage.setItem(modeSK, value)
   }
 
-  // #region CS ------------------------------------------------------------------------------------------
+  // #region RM ------------------------------------------------------------------------------------------
   function getSystemPref() {
     const supportsPref = window.matchMedia('(prefers-color-scheme)').media !== 'not all'
     return supportsPref ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : undefined
   }
 
-  function getCS(mode: string) {
+  function deriveRM(mode: string) {
     if (!modeProp) return
 
     const { prop, stratObj } = modeProp
+
+    const isSystemMode = stratObj.strategy === 'system' && stratObj.enableSystem && mode === (stratObj.customKeys?.system ?? 'system')
+    if (isSystemMode) return getSystemPref() ?? (resolvedModes.get(stratObj.fallback) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>)
+
     if (!constraints.get(prop)?.allowed.has(mode)) return
+    return resolvedModes.get(mode) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>
+  }
 
-    const isSystemMode = stratObj.strategy === 'system' && stratObj.enableSystem !== false && mode === (stratObj.enableSystem ? stratObj.customKeys?.system : 'system')
+  function handleRMMutation({ getter, setter }: { getter: () => string | undefined; setter: (value: 'light' | 'dark') => void }) {
+    if (!modeProp) return
 
-    if (isSystemMode) return getSystemPref() ?? (colorSchemes.get(stratObj.fallback) as NonNullable<ReturnType<(typeof colorSchemes)['get']>>)
-    return colorSchemes.get(mode) as NonNullable<ReturnType<(typeof colorSchemes)['get']>>
+    const newCS = getter()
+
+    const currMode = getSVs().get(modeProp.prop)
+    const correctCS = deriveRM(currMode as NonNullable<typeof currMode>)
+
+    if (newCS !== correctCS) setter(correctCS as NonNullable<typeof correctCS>)
+  }
+
+  // #region CS ------------------------------------------------------------------------------------------
+
+  function getCS() {
+    return html.style.colorScheme
   }
 
   function setCS(CS: 'light' | 'dark') {
@@ -187,6 +216,10 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
   }
 
   // #region MC ------------------------------------------------------------------------------------------
+  function getMC() {
+    return html.classList.contains('light') ? 'light' : html.classList.contains('dark') ? 'dark' : undefined
+  }
+
   function setMC(CS: 'light' | 'dark') {
     const other = CS === 'light' ? 'dark' : 'light'
     html.classList.replace(other, CS) || html.classList.add(CS)
@@ -198,6 +231,18 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
     if (key === configSK) handleSVsChange({ candidateValues: jsonToMap(newValue ?? ''), previousValues: jsonToMap(oldValue ?? '') })
   }
 
+  // #region MUTATIONS -----------------------------------------------------------------------------------
+  function handleMutations(mutations: MutationRecord[]) {
+    for (const mutation of mutations) {
+      // prettier-ignore
+      switch (mutation.attributeName) {
+        case 'style': handleRMMutation({ getter: getCS, setter: setCS }); break;
+        case 'class': handleRMMutation({ getter: getMC, setter: setMC }); break;
+        default: handleTAMutation(mutation); break;
+      }
+    }
+  }
+
   // #region INIT ----------------------------------------------------------------------------------------
   function init() {
     const storageValues = getSVs()
@@ -206,6 +251,14 @@ export function script({ config, keys: { configSK, modeSK, customSEK } }: Script
     applySVs(sanitizedValues)
 
     window.addEventListener(customSEK, handleCustomSE as EventListener)
+
+    const observer = new MutationObserver(handleMutations)
+    if (listeners.includes('attributes'))
+      observer.observe(html, {
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: [...Array.from(constraints.keys()).map((prop) => `data-${prop}`), ...(modeProp && modeProp.selectors.includes('colorScheme') ? ['style'] : []), ...(modeProp && modeProp.selectors.includes('class') ? ['class'] : [])],
+      })
   }
 
   init()

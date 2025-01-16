@@ -6,8 +6,9 @@ import { CONFIG_SK, CUSTOM_SEK, MODE_SK } from '../constants'
 import { NextThemifyContext } from '../context'
 import { Script } from './Script'
 import { useThemeValues } from '../hooks/use-theme-values'
+import { ScriptParams } from '../types/script'
 
-interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren {
+interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, Partial<Pick<ScriptParams, 'listeners'>> {
   config: C
   keys?: {
     configSK?: string
@@ -15,16 +16,18 @@ interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> exten
     customSEK?: string
   }
 }
-export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, keys }: NextThemifyProviderProps<Ps, C>) => {
+export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, keys, listeners: customizedListeners }: NextThemifyProviderProps<Ps, C>) => {
   const configSK = keys?.configSK ?? CONFIG_SK
   const modeSK = keys?.modeSK ?? MODE_SK
   const customSEK = keys?.customSEK ?? CUSTOM_SEK
 
   const [values, setValue] = useThemeValues<Ps, C>({ keys: { configSK, customSEK } })
 
+  const listeners = customizedListeners ?? ['attributes', 'storage']
+
   return (
     <NextThemifyContext.Provider value={{ values, setValue }}>
-      <Script params={{ config, keys: { configSK, modeSK, customSEK } }} />
+      <Script params={{ config, keys: { configSK, modeSK, customSEK }, listeners }} />
       {children}
     </NextThemifyContext.Provider>
   )
