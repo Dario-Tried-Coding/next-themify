@@ -5,7 +5,7 @@ import { Config, Props } from '../types'
 import { CONFIG_SK, CUSTOM_SEK, MODE_SK } from '../constants'
 import { NextThemifyContext } from '../context'
 import { Script } from './Script'
-import { useValues } from '../hooks/use-theme-values'
+import { useThemeValues } from '../hooks/use-theme-values'
 
 interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren {
   config: C
@@ -20,7 +20,7 @@ export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ ch
   const modeSK = keys?.modeSK ?? MODE_SK
   const customSEK = keys?.customSEK ?? CUSTOM_SEK
 
-  const [values, setValue] = useValues<Ps, C>({ configSK: keys?.configSK ?? CONFIG_SK })
+  const [values, setValue] = useThemeValues<Ps, C>({ keys: { configSK, customSEK } })
 
   return (
     <NextThemifyContext.Provider value={{ values, setValue }}>

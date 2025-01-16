@@ -20,14 +20,14 @@ type Generic_Multi<V extends string[] = string[]> = Generic & { strategy: 'multi
 type GenericProp = Generic_Mono | Generic_Multi
 
 // #region STRATEGIES - mode -------------------------------------------------------------------------
-type Mode = { type: 'mode'; selectors?: Selector | Selector[]; store?: boolean }
+type Mode = { type: 'mode'; selectors?: Selector[]; store?: boolean }
 type Mode_Mono<V extends string = string> = Mode & { strategy: 'mono'; key: V; colorScheme: ColorScheme }
 type Mode_Multi<V extends string[] = string[]> = Mode & { strategy: 'multi'; keys: { [K in V[number]]: ColorScheme }; preferred: V[number] }
 type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; system: undefined; custom: undefined }> = Mode & {
   strategy: 'system'
 } & (
     | ({
-        enableSystem?: true
+        enableSystem: true
         preferred: [V['light'], V['dark'], V['system'], V['custom']] extends [undefined, undefined, undefined, undefined]
           ? string
           : (V['light'] extends string ? V['light'] : 'light') | (V['dark'] extends string ? V['dark'] : 'dark') | (V['system'] extends string ? V['system'] : 'system') | (V['custom'] extends string[] ? V['custom'][number] : never)

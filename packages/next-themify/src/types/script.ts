@@ -1,4 +1,4 @@
-import { StaticConfig } from "./react"
+import { StaticConfig } from './react'
 
 export type ScriptParams = {
   config: StaticConfig
@@ -8,3 +8,9 @@ export type ScriptParams = {
     customSEK: string
   }
 }
+
+export type CustomSE = CustomEvent<{
+  key: string
+  newValue: string | null
+  oldValue: string | null
+}>
