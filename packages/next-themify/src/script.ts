@@ -141,9 +141,23 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
     localStorage.setItem(configSK, JSON.stringify(Object.fromEntries(values)))
   }
 
+  // #region TA - getter ---------------------------------------------------------------------------------
+  function getTA(prop: string) {
+    return target.getAttribute(`data-${prop}`)
+  }
+
   // #region TA - setter ---------------------------------------------------------------------------------
   function setTA(prop: string, value: string) {
     target.setAttribute(`data-${prop}`, value)
+  }
+  
+  // #region TA - mutation handler -----------------------------------------------------------------------
+  function handleTAMutation({ attributeName }: MutationRecord) {
+    const prop = attributeName?.replace('data-', '') as NonNullable<typeof attributeName>
+    const newValue = getTA(prop)
+
+    const currValue = getSVs().values.get(prop)
+    if (currValue && newValue !== currValue) setTA(prop, currValue)
   }
 
   // #region TAs - setter --------------------------------------------------------------------------------
@@ -166,24 +180,58 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
   
   function deriveRM(mode: string) {
     if (!modeProp || !resolvedModes) return
-    
+
     const { prop, stratObj } = modeProp
-    
+
     const isSystemMode = stratObj.strategy === 'system' && stratObj.enableSystem && mode === (stratObj.customKeys?.system ?? 'system')
     if (isSystemMode) return getSystemPref() ?? (resolvedModes.get(stratObj.fallback) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>)
-      
-      return resolvedModes.get(mode) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>
-    }
+
+    return resolvedModes.get(mode) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>
+  }
+
+  // #region RM - mutation handler -----------------------------------------------------------------------
+  function handleRMMutation({ getter, setter }: { getter: () => NullOr<string>; setter: (value: 'light' | 'dark') => void }) {
+    if (!modeProp) return
+
+    const newRM = getter()
+
+    const currMode = getSVs().values.get(modeProp.prop)
+    const correctRM = deriveRM(currMode as NonNullable<typeof currMode>)
+
+    if (newRM !== correctRM) setter(correctRM as NonNullable<typeof correctRM>)
+  }
+
+  // #region CS - getter ---------------------------------------------------------------------------------
+  function getCS() {
+    return target.style.colorScheme
+  }
 
   // #region CS - setter ---------------------------------------------------------------------------------
   function setCS(RM: ColorScheme) {
     target.style.colorScheme = RM
   }
 
+  // #region MC - getter ---------------------------------------------------------------------------------
+  function getMC() {
+    return target.classList.contains('light') ? 'light' : target.classList.contains('dark') ? 'dark' : null
+  }
+
   // #region MC - setter ---------------------------------------------------------------------------------
   function setMC(RM: ColorScheme) {
     const other = RM === 'light' ? 'dark' : 'light'
     target.classList.replace(other, RM) || target.classList.add(RM)
+  }
+
+  // #region MUTATIONS - handler -------------------------------------------------------------------------
+  function handleMutations(mutations: MutationRecord[]) {
+    for (const mutation of mutations) {
+      // prettier-ignore
+      switch (mutation.attributeName) {
+        case 'style': handleRMMutation({ getter: getCS, setter: setCS }); break;
+        case 'class': handleRMMutation({ getter: getMC, setter: setMC }); break;
+        default: handleTAMutation(mutation); break;
+      }
+    }
   }
 
   // #region INIT ----------------------------------------------------------------------------------------
@@ -198,10 +246,19 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
       const mode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
       if (store) setSM(mode)
-      
+
       const RM = deriveRM(mode) as NonNullable<ReturnType<typeof deriveRM>>
       if (selectors.includes('colorScheme')) setCS(RM)
       if (selectors.includes('class')) setMC(RM)
+    }
+
+    if (listeners.includes('attributes')) {
+      const observer = new MutationObserver(handleMutations)
+      observer.observe(target, {
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: [...Array.from(constraints.keys()).map((prop) => `data-${prop}`), ...(modeProp && modeProp.selectors.includes('colorScheme') ? ['style'] : []), ...(modeProp && modeProp.selectors.includes('class') ? ['class'] : [])],
+      })
     }
   }
 
