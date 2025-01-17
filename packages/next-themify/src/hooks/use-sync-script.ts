@@ -2,23 +2,26 @@ import { useEffect, useState } from 'react'
 import { Config, Props, Values } from '../types'
 import { useIsMounted } from './use-is-mounted'
 import { NextThemifyContext } from '../context'
-import { useCustomSE } from './use-custom-storage-event'
+import { CustomSE, ScriptParams } from '../types/script'
+import { useEventsBridge } from './use-events-bridge'
 
 type Params = {
-  keys: {
-    configSK: string
-    customSEK: string
-  }
+  storageKey: string
+  events: ScriptParams['events']
 }
-export const useThemeValues = <Ps extends Props, C extends Config<Ps>>({ keys: { configSK, customSEK } }: Params) => {
+export const useSyncScript = <Ps extends Props, C extends Config<Ps>>({ storageKey, events: { updateStorageCE, storageUpdatedCE } }: Params) => {
   const [values, setValues] = useState<Values<Ps, C> | null>(null)
   const isMounted = useIsMounted()
-  const dispatchCustomSE = useCustomSE({ keys: { configSK, customSEK }, setValues })
+  
+  const { dispatchUpdate } = useEventsBridge<Values<Ps, C> | null, CustomSE>({
+    listenFor: { eventKey: storageUpdatedCE, cb: setValues },
+    dispatch: { eventKey: updateStorageCE }
+  })
 
   useEffect(() => {
     if (!isMounted) return
 
-    const string = localStorage.getItem(configSK)
+    const string = localStorage.getItem(storageKey)
     setValues(string ? (JSON.parse(string) as Values<Ps, C>) : null)
   }, [isMounted])
 
@@ -26,7 +29,7 @@ export const useThemeValues = <Ps extends Props, C extends Config<Ps>>({ keys: {
     const currentValue = values?.[prop]
     const newValue = typeof value === 'function' ? (value as (currentValue: Values<Ps, C>[typeof prop] | undefined) => Values<Ps, C>[typeof prop])(currentValue) : value
     const newValues = { ...values, [prop]: newValue }
-    dispatchCustomSE({ newValue: JSON.stringify(newValues), oldValue: JSON.stringify(values) })
+    dispatchUpdate({ key: storageKey, newValue: JSON.stringify(newValues) })
   }
 
   return [values, setValue] as const

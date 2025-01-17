@@ -1,13 +1,15 @@
-import { CustomSE, ScriptParams } from './types/script'
+import { ColorScheme } from './types/react'
+import { ScriptParams, CustomSE } from './types/script'
+import { Nullable, NullOr } from './types/utils'
 
-export function script({ config, keys: { configSK, modeSK, customSEK }, listeners }: ScriptParams) {
-  const html = document.documentElement
+export function script({ config, storageKeys: { configSK, modeSK }, events: { updateStorageCE, storageUpdatedCE }, listeners }: ScriptParams) {
+  const target = document.documentElement
 
   const constraints = getConstraints()
   const modeProp = getModeProp()
   const resolvedModes = getResolvedModes()
 
-  // #region UTILS --------------------------------------------------------------------------------------
+  // #region UTILS - constraints -----------------------------------------------------------------------------
   function getConstraints() {
     const constraints: Map<string, { preferred: string; allowed: Set<string> }> = new Map()
 
@@ -34,6 +36,7 @@ export function script({ config, keys: { configSK, modeSK, customSEK }, listener
     return constraints
   }
 
+  // #region UTILS - mode prop -------------------------------------------------------------------------------
   function getModeProp() {
     const prop = Object.entries(config).find(([prop, stratObj]) => stratObj.type === 'mode')?.[0]
     const stratObj = Object.values(config).find((stratObj) => stratObj.type === 'mode')
@@ -46,10 +49,11 @@ export function script({ config, keys: { configSK, modeSK, customSEK }, listener
     return { prop, stratObj, selectors, store }
   }
 
+  // #region UTILS - resolved modes --------------------------------------------------------------------------
   function getResolvedModes() {
     const resolvedModes: Map<string, 'light' | 'dark'> = new Map()
 
-    if (!modeProp) return resolvedModes
+    if (!modeProp) return
 
     const { stratObj } = modeProp
     // prettier-ignore
@@ -67,6 +71,16 @@ export function script({ config, keys: { configSK, modeSK, customSEK }, listener
     return resolvedModes
   }
 
+  // #region UTILS --------------------------------------------------------------------------------------
+  function isPropHandled(prop: string) {
+    return constraints.has(prop)
+  }
+
+  function isValueAllowed(prop: string, value: string) {
+    return constraints.get(prop)?.allowed.has(value) ?? false
+  }
+
+  // #region HELPERS ------------------------------------------------------------------------------------
   function jsonToMap(input: string) {
     if (!input?.trim()) return new Map<string, string>()
     try {
@@ -78,187 +92,117 @@ export function script({ config, keys: { configSK, modeSK, customSEK }, listener
     }
   }
 
-  // #region HELPERS ------------------------------------------------------------------------------------
-  function isPropHandled(prop: string) {
-    return constraints.has(prop)
+  // #region VALUE - sanitizer ---------------------------------------------------------------------------
+  function sanitizeValue(prop: string, value: NullOr<string>, fallback?: string) {
+    const isHandled = isPropHandled(prop)
+    const isAllowedValue = isHandled && !!value ? isValueAllowed(prop, value) : false
+    const isAllowedFallback = isHandled && !!fallback ? isValueAllowed(prop, fallback) : false
+
+    const preferred = constraints.get(prop)?.preferred
+    const sanitizedValue = isHandled ? (isAllowedValue ? value : isAllowedFallback ? fallback : preferred) : undefined
+
+    return {
+      passed: isHandled && isAllowedValue,
+      value: sanitizedValue,
+    }
   }
 
-  function isValueAllowed(prop: string, value: string) {
-    return constraints.get(prop)?.allowed.has(value) ?? false
-  }
-
-  // #region VALUES -------------------------------------------------------------------------------------
-  function sanitizeValue({ prop, candidate, candidateFallback }: { prop: string; candidate: string; candidateFallback?: string }) {
-    const isHandledProp = isPropHandled(prop)
-    const preferredValue = constraints.get(prop)?.preferred
-    const isCandidateAllowed = isValueAllowed(prop, candidate)
-    const isCandidateFallbackAllowed = !!candidateFallback && isValueAllowed(prop, candidateFallback)
-
-    if (!isHandledProp) return
-    if (isCandidateAllowed) return candidate
-    if (isCandidateFallbackAllowed) return candidateFallback
-    return preferredValue as NonNullable<typeof preferredValue>
-  }
-
-  function sanitizeValues(values: Map<string, string | { candidate: string; candidateFallback?: string }>) {
-    const sanitizedValues: Map<string, string> = new Map()
+  // #region VALUES - sanitizer --------------------------------------------------------------------------
+  function sanitizeValues(values: Map<string, string>, fallbacks?: Map<string, string>) {
+    const sanitizedValues = new Map<string, string>()
 
     for (const [prop, { preferred }] of constraints.entries()) {
       sanitizedValues.set(prop, preferred)
     }
 
-    for (const [prop, value] of values.entries()) {
-      const sanitizedValue = sanitizeValue({ prop, ...(typeof value === 'string' ? { candidate: value } : value) })
-      if (sanitizedValue) sanitizedValues.set(prop, sanitizedValue)
+    for (const [prop, fallback] of fallbacks?.entries() ?? []) {
+      const isHandled = isPropHandled(prop)
+      const isAllowed = isValueAllowed(prop, fallback)
+      if (isHandled && isAllowed) sanitizedValues.set(prop, fallback)
     }
 
-    return sanitizedValues
+    for (const [prop, value] of values.entries()) {
+      const { passed, value: sanValue } = sanitizeValue(prop, value)
+      if (sanValue && passed) sanitizedValues.set(prop, sanValue)
+    }
+
+    const passed = sanitizedValues.size === values.size && Array.from(sanitizedValues.entries()).every(([prop, sanValue]) => values.get(prop) === sanValue)
+    return { passed, values: sanitizedValues }
   }
 
-  // #region SVs -----------------------------------------------------------------------------------------
+  // #region SVs - getter --------------------------------------------------------------------------------
   function getSVs() {
-    return jsonToMap(localStorage.getItem(configSK) ?? '')
+    const values = jsonToMap(localStorage.getItem(configSK) ?? '')
+    return sanitizeValues(values)
   }
 
+  // #region SVs - setter --------------------------------------------------------------------------------
   function setSVs(values: Map<string, string>) {
     localStorage.setItem(configSK, JSON.stringify(Object.fromEntries(values)))
   }
 
-  function applySVs(values: Map<string, string>) {
-    setSVs(values)
-    setTAs(values)
-
-    const isModeAllowed = !!modeProp
-    if (isModeAllowed) {
-      const { prop, store, selectors } = modeProp
-
-      const sanitizedMode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
-      if (store) setSM(sanitizedMode)
-
-      const resolvedMode = deriveRM(sanitizedMode) as NonNullable<ReturnType<typeof deriveRM>>
-      if (selectors.includes('colorScheme')) setCS(resolvedMode)
-      if (selectors.includes('class')) setMC(resolvedMode)
-    }
+  // #region TA - setter ---------------------------------------------------------------------------------
+  function setTA(prop: string, value: string) {
+    target.setAttribute(`data-${prop}`, value)
   }
 
-  function handleSVsChange({ candidateValues, previousValues }: { candidateValues: Map<string, string>; previousValues: Map<string, string> }) {
-    const payload = new Map(Array.from(candidateValues.entries()).map(([prop, candidate]) => [prop, { candidate, candidateFallback: previousValues.get(prop) }]))
-    const sanitizedValues = sanitizeValues(payload)
-
-    applySVs(sanitizedValues)
-  }
-
-  // #region TAs -----------------------------------------------------------------------------------------
-  function getTA(prop: string) {
-    return html.getAttribute(`data-${prop}`)
-  }
-
-  function setTA({ prop, value }: { prop: string; value: string }) {
-    html.setAttribute(`data-${prop}`, value)
-  }
-
+  // #region TAs - setter --------------------------------------------------------------------------------
   function setTAs(values: Map<string, string>) {
     for (const [prop, value] of values.entries()) {
-      setTA({ prop, value })
+      setTA(prop, value)
     }
   }
 
-  function handleTAMutation({ attributeName }: MutationRecord) {
-    const prop = attributeName?.replace('data-', '') as NonNullable<typeof attributeName>
-    const newValue = getTA(prop)
-
-    const currValue = getSVs().get(prop)
-    if (newValue !== currValue) setTA({ prop, value: currValue as NonNullable<typeof currValue> })
-  }
-
-  // #region SM ------------------------------------------------------------------------------------------
+  // #region SM - setter ---------------------------------------------------------------------------------
   function setSM(value: string) {
     localStorage.setItem(modeSK, value)
   }
 
-  // #region RM ------------------------------------------------------------------------------------------
+  // #region RM - deriver --------------------------------------------------------------------------------
   function getSystemPref() {
     const supportsPref = window.matchMedia('(prefers-color-scheme)').media !== 'not all'
     return supportsPref ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : undefined
   }
-
+  
   function deriveRM(mode: string) {
-    if (!modeProp) return
-
+    if (!modeProp || !resolvedModes) return
+    
     const { prop, stratObj } = modeProp
-
+    
     const isSystemMode = stratObj.strategy === 'system' && stratObj.enableSystem && mode === (stratObj.customKeys?.system ?? 'system')
     if (isSystemMode) return getSystemPref() ?? (resolvedModes.get(stratObj.fallback) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>)
-
-    if (!constraints.get(prop)?.allowed.has(mode)) return
-    return resolvedModes.get(mode) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>
-  }
-
-  function handleRMMutation({ getter, setter }: { getter: () => string | undefined; setter: (value: 'light' | 'dark') => void }) {
-    if (!modeProp) return
-
-    const newCS = getter()
-
-    const currMode = getSVs().get(modeProp.prop)
-    const correctCS = deriveRM(currMode as NonNullable<typeof currMode>)
-
-    if (newCS !== correctCS) setter(correctCS as NonNullable<typeof correctCS>)
-  }
-
-  // #region CS ------------------------------------------------------------------------------------------
-
-  function getCS() {
-    return html.style.colorScheme
-  }
-
-  function setCS(CS: 'light' | 'dark') {
-    html.style.colorScheme = CS
-  }
-
-  // #region MC ------------------------------------------------------------------------------------------
-  function getMC() {
-    return html.classList.contains('light') ? 'light' : html.classList.contains('dark') ? 'dark' : undefined
-  }
-
-  function setMC(CS: 'light' | 'dark') {
-    const other = CS === 'light' ? 'dark' : 'light'
-    html.classList.replace(other, CS) || html.classList.add(CS)
-  }
-
-  // #region SE ------------------------------------------------------------------------------------------
-  function handleCustomSE(e: CustomSE) {
-    const { key, newValue, oldValue } = e.detail
-    if (key === configSK) handleSVsChange({ candidateValues: jsonToMap(newValue ?? ''), previousValues: jsonToMap(oldValue ?? '') })
-  }
-
-  // #region MUTATIONS -----------------------------------------------------------------------------------
-  function handleMutations(mutations: MutationRecord[]) {
-    for (const mutation of mutations) {
-      // prettier-ignore
-      switch (mutation.attributeName) {
-        case 'style': handleRMMutation({ getter: getCS, setter: setCS }); break;
-        case 'class': handleRMMutation({ getter: getMC, setter: setMC }); break;
-        default: handleTAMutation(mutation); break;
-      }
+      
+      return resolvedModes.get(mode) as NonNullable<ReturnType<(typeof resolvedModes)['get']>>
     }
+
+  // #region CS - setter ---------------------------------------------------------------------------------
+  function setCS(RM: ColorScheme) {
+    target.style.colorScheme = RM
+  }
+
+  // #region MC - setter ---------------------------------------------------------------------------------
+  function setMC(RM: ColorScheme) {
+    const other = RM === 'light' ? 'dark' : 'light'
+    target.classList.replace(other, RM) || target.classList.add(RM)
   }
 
   // #region INIT ----------------------------------------------------------------------------------------
   function init() {
-    const storageValues = getSVs()
-    const sanitizedValues = sanitizeValues(storageValues)
+    const { passed, values } = getSVs()
+    if (!passed) setSVs(values)
 
-    applySVs(sanitizedValues)
+    setTAs(values)
 
-    window.addEventListener(customSEK, handleCustomSE as EventListener)
+    if (modeProp) {
+      const { prop, store, selectors } = modeProp
 
-    const observer = new MutationObserver(handleMutations)
-    if (listeners.includes('attributes'))
-      observer.observe(html, {
-        attributes: true,
-        attributeOldValue: true,
-        attributeFilter: [...Array.from(constraints.keys()).map((prop) => `data-${prop}`), ...(modeProp && modeProp.selectors.includes('colorScheme') ? ['style'] : []), ...(modeProp && modeProp.selectors.includes('class') ? ['class'] : [])],
-      })
+      const mode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
+      if (store) setSM(mode)
+      
+      const RM = deriveRM(mode) as NonNullable<ReturnType<typeof deriveRM>>
+      if (selectors.includes('colorScheme')) setCS(RM)
+      if (selectors.includes('class')) setMC(RM)
+    }
   }
 
   init()

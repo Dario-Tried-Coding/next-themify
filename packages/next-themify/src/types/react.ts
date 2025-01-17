@@ -1,8 +1,4 @@
-// #region UTILS ---------------------------------------------------------------------------------------
-type Prettify<T> = {
-  [K in keyof T]: T[K]
-} & {}
-type HasKeys<T> = keyof T extends never ? false : true
+import { HasKeys, Keyof, Prettify } from "./utils";
 
 // #region PROPS ---------------------------------------------------------------------------------------
 type SystemValues = Partial<{ light: string; dark: string; system: string; custom: string[] }>
@@ -10,8 +6,8 @@ type Options = string | string[] | SystemValues
 type ExplicitProp = { prop: string; values: Options }
 export type Props = (string | ExplicitProp)[]
 
-type ColorScheme = 'light' | 'dark'
-type Selector = 'class' | 'colorScheme'
+export type ColorScheme = 'light' | 'dark'
+export type Selector = 'class' | 'colorScheme'
 
 // #region STRATEGIES - generic -----------------------------------------------------------------------
 type Generic = { type: 'generic' }
@@ -96,14 +92,14 @@ export type Values<Ps extends Props, C extends Config<Ps>> = Prettify<{
     : C[P] extends { strategy: 'multi' }
       ? C[P] extends { type: 'generic' }
         ? C[P]['keys'][number]
-        : keyof C[P]['keys'] & string
+        : Keyof<C[P]['keys']>
       : C[P] extends { strategy: 'system' }
         ? C[P] extends { customKeys: any }
           ?
               | (C[P]['customKeys'] extends { light: string } ? C[P]['customKeys']['light'] : 'light')
               | (C[P]['customKeys'] extends { dark: string } ? C[P]['customKeys']['dark'] : 'dark')
               | (C[P]['customKeys'] extends { system: string } ? C[P]['customKeys']['system'] : 'system')
-              | (C[P]['customKeys'] extends { custom: Record<string, ColorScheme> } ? keyof C[P]['customKeys']['custom'] & string : never)
+              | (C[P]['customKeys'] extends { custom: Record<string, ColorScheme> } ? Keyof<C[P]['customKeys']['custom']> : never)
           : 'light' | 'dark' | (C[P]['enableSystem'] extends false ? never : 'system')
         : never
 }>

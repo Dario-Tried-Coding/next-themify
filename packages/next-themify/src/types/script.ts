@@ -2,10 +2,13 @@ import { StaticConfig } from './react'
 
 export type ScriptParams = {
   config: StaticConfig
-  keys: {
+  storageKeys: {
     configSK: string
     modeSK: string
-    customSEK: string
+  }
+  events: {
+    updateStorageCE: string
+    storageUpdatedCE: string
   }
   listeners: ('attributes' | 'storage')[]
 }
@@ -13,5 +16,4 @@ export type ScriptParams = {
 export type CustomSE = CustomEvent<{
   key: string
   newValue: string | null
-  oldValue: string | null
 }>

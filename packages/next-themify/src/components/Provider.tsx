@@ -2,32 +2,34 @@
 
 import { PropsWithChildren } from 'react'
 import { Config, Props } from '../types'
-import { CONFIG_SK, CUSTOM_SEK, MODE_SK } from '../constants'
+import { CONFIG_SK, MODE_SK, UPDATE_STORAGE_CE, STORAGE_UPDATED_CE } from '../constants'
 import { NextThemifyContext } from '../context'
 import { Script } from './Script'
-import { useThemeValues } from '../hooks/use-theme-values'
 import { ScriptParams } from '../types/script'
+import { useSyncScript } from '../hooks/use-sync-script'
+import { DeepPartial } from '../types/utils'
 
-interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, Partial<Pick<ScriptParams, 'listeners'>> {
+interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, Pick<DeepPartial<ScriptParams>, 'storageKeys'>, Pick<ScriptParams, 'listeners'> {
   config: C
-  keys?: {
-    configSK?: string
-    modeSK?: string
-    customSEK?: string
-  }
 }
-export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, keys, listeners: customizedListeners }: NextThemifyProviderProps<Ps, C>) => {
-  const configSK = keys?.configSK ?? CONFIG_SK
-  const modeSK = keys?.modeSK ?? MODE_SK
-  const customSEK = keys?.customSEK ?? CUSTOM_SEK
+export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, storageKeys, listeners: customizedListeners }: NextThemifyProviderProps<Ps, C>) => {
+  const configSK = storageKeys?.configSK ?? CONFIG_SK
+  const modeSK = storageKeys?.modeSK ?? MODE_SK
+  const updateStorageCE = UPDATE_STORAGE_CE
+  const storageUpdatedCE = STORAGE_UPDATED_CE
 
-  const [values, setValue] = useThemeValues<Ps, C>({ keys: { configSK, customSEK } })
+  const [values, setValue] = useSyncScript<Ps, C>({ storageKey: configSK, events: { updateStorageCE, storageUpdatedCE } })
 
-  const listeners = customizedListeners ?? ['attributes', 'storage']
+  const scriptParams: ScriptParams = {
+    config,
+    storageKeys: { configSK, modeSK },
+    events: { updateStorageCE, storageUpdatedCE },
+    listeners: customizedListeners ?? ['attributes', 'storage'],
+  }
 
   return (
     <NextThemifyContext.Provider value={{ values, setValue }}>
-      <Script params={{ config, keys: { configSK, modeSK, customSEK }, listeners }} />
+      <Script params={scriptParams} />
       {children}
     </NextThemifyContext.Provider>
   )
