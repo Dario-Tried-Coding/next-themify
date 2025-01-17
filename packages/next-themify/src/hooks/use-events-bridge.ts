@@ -5,7 +5,8 @@ import { CustomSE } from '../types/script'
 
 interface Params<T, E extends CustomEvent> {
   listenFor: {
-    eventKey: string
+    event: string
+    storageKey: string
     cb: (arg: T) => void
   }
   dispatch: {
@@ -18,14 +19,14 @@ export const useEventsBridge = <T, E extends CustomEvent>({ listenFor, dispatch 
     const handler = (e: CustomSE) => {
       const { key, newValue } = e.detail
 
-      if (key === listenFor.eventKey) {
+      if (key === listenFor.storageKey) {
         const newValues = (newValue ? JSON.parse(newValue) : null) as T
         listenFor.cb(newValues)
       }
     }
 
-    window.addEventListener(listenFor.eventKey, handler as EventListener)
-    return () => window.removeEventListener(listenFor.eventKey, handler as EventListener)
+    window.addEventListener(listenFor.event, handler as EventListener)
+    return () => window.removeEventListener(listenFor.event, handler as EventListener)
   }, [listenFor])
 
   const dispatchUpdate = useCallback(

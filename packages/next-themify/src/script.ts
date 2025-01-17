@@ -132,13 +132,34 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
   // #region SVs - getter --------------------------------------------------------------------------------
   function getSVs() {
-    const values = jsonToMap(localStorage.getItem(configSK) ?? '')
-    return sanitizeValues(values)
+    return jsonToMap(localStorage.getItem(configSK) ?? '')
+  }
+
+  // #region SVs - sanitizer & getter --------------------------------------------------------------------
+  function getSanSVs() {
+    return sanitizeValues(getSVs())
   }
 
   // #region SVs - setter --------------------------------------------------------------------------------
   function setSVs(values: Map<string, string>) {
     localStorage.setItem(configSK, JSON.stringify(Object.fromEntries(values)))
+  }
+
+  // #region SVs - applier -------------------------------------------------------------------------------
+  function applySVs(values: Map<string, string>) {
+    setSVs(values)
+    setTAs(values)
+
+    if (modeProp) {
+      const { prop, store, selectors } = modeProp
+
+      const mode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
+      if (store) setSM(mode)
+
+      const RM = deriveRM(mode) as NonNullable<ReturnType<typeof deriveRM>>
+      if (selectors.includes('colorScheme')) setCS(RM)
+      if (selectors.includes('class')) setMC(RM)
+    }
   }
 
   // #region TA - getter ---------------------------------------------------------------------------------
@@ -150,13 +171,13 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
   function setTA(prop: string, value: string) {
     target.setAttribute(`data-${prop}`, value)
   }
-  
+
   // #region TA - mutation handler -----------------------------------------------------------------------
   function handleTAMutation({ attributeName }: MutationRecord) {
     const prop = attributeName?.replace('data-', '') as NonNullable<typeof attributeName>
     const newValue = getTA(prop)
 
-    const currValue = getSVs().values.get(prop)
+    const currValue = getSVs().get(prop)
     if (currValue && newValue !== currValue) setTA(prop, currValue)
   }
 
@@ -177,7 +198,7 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
     const supportsPref = window.matchMedia('(prefers-color-scheme)').media !== 'not all'
     return supportsPref ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : undefined
   }
-  
+
   function deriveRM(mode: string) {
     if (!modeProp || !resolvedModes) return
 
@@ -195,7 +216,7 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
     const newRM = getter()
 
-    const currMode = getSVs().values.get(modeProp.prop)
+    const currMode = getSVs().get(modeProp.prop)
     const correctRM = deriveRM(currMode as NonNullable<typeof currMode>)
 
     if (newRM !== correctRM) setter(correctRM as NonNullable<typeof correctRM>)
@@ -234,23 +255,48 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
     }
   }
 
-  // #region INIT ----------------------------------------------------------------------------------------
+  // #region EVENTS - storageUpdated - dispatcher ------------------------------------------------------
+  function dispatchStorageUpdatedCE(newValue: NullOr<string>) {
+    const updatedEvent = new CustomEvent<CustomSE['detail']>(storageUpdatedCE, { detail: { key: configSK, newValue } })
+    window.dispatchEvent(updatedEvent)
+  }
+
+  // #region EVENTS - updateStorage - handler ------------------------------------------------------------
+  function handleUpdateStorage(e: CustomSE) {
+    const { key, newValue } = e.detail
+
+    if (key !== configSK) return
+
+    const values = jsonToMap(newValue ?? '')
+    const currValues = getSVs()
+
+    const { values: sanValues } = sanitizeValues(values, currValues)
+    applySVs(sanValues)
+    dispatchStorageUpdatedCE(JSON.stringify(Object.fromEntries(sanValues)))
+  }
+
+  // #region EVENTS - nativeSE - handler ----------------------------------------------------------------
+  function handleNativeSE(e: StorageEvent) {
+    if (e.key !== configSK) return
+
+    const newValues = jsonToMap(e.newValue ?? '')
+    const prevValues = jsonToMap(e.oldValue ?? '')
+
+    const { values: sanValues } = sanitizeValues(newValues, prevValues)
+    applySVs(sanValues)
+    dispatchStorageUpdatedCE(JSON.stringify(Object.fromEntries(sanValues)))
+  }
+
+  // #region EVENTS - handler ------------------------------------------------------------------------------
+  function handleEvents(e: StorageEvent | CustomSE) {
+    if (e instanceof StorageEvent) handleNativeSE(e)
+    else handleUpdateStorage(e)
+  }
+
+  // #region INIT ------------------------------------------------------------------------------------------
   function init() {
-    const { passed, values } = getSVs()
-    if (!passed) setSVs(values)
-
-    setTAs(values)
-
-    if (modeProp) {
-      const { prop, store, selectors } = modeProp
-
-      const mode = values.get(prop) as NonNullable<ReturnType<(typeof values)['get']>>
-      if (store) setSM(mode)
-
-      const RM = deriveRM(mode) as NonNullable<ReturnType<typeof deriveRM>>
-      if (selectors.includes('colorScheme')) setCS(RM)
-      if (selectors.includes('class')) setMC(RM)
-    }
+    const { values } = getSanSVs()
+    applySVs(values)
 
     if (listeners.includes('attributes')) {
       const observer = new MutationObserver(handleMutations)
@@ -260,6 +306,9 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
         attributeFilter: [...Array.from(constraints.keys()).map((prop) => `data-${prop}`), ...(modeProp && modeProp.selectors.includes('colorScheme') ? ['style'] : []), ...(modeProp && modeProp.selectors.includes('class') ? ['class'] : [])],
       })
     }
+
+    if (listeners.includes('storage')) window.addEventListener('storage', handleNativeSE)
+    window.addEventListener(updateStorageCE, handleEvents as EventListener)
   }
 
   init()

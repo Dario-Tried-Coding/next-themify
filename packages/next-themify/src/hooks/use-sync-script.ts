@@ -14,7 +14,7 @@ export const useSyncScript = <Ps extends Props, C extends Config<Ps>>({ storageK
   const isMounted = useIsMounted()
   
   const { dispatchUpdate } = useEventsBridge<Values<Ps, C> | null, CustomSE>({
-    listenFor: { eventKey: storageUpdatedCE, cb: setValues },
+    listenFor: { event: storageUpdatedCE, storageKey, cb: setValues },
     dispatch: { eventKey: updateStorageCE }
   })
 
