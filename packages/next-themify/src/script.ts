@@ -2,7 +2,7 @@ import { ColorScheme } from './types/react'
 import { ScriptParams, CustomSE } from './types/script'
 import { Nullable, NullOr } from './types/utils'
 
-export function script({ config, storageKeys: { configSK, modeSK }, events: { updateStorageCE, storageUpdatedCE }, listeners }: ScriptParams) {
+export function script({ config, storageKeys: { configSK, modeSK }, events: { updateStorageCE, storageUpdatedCE }, behaviour: { listeners, defaultSelectors, defaultStoreMode } }: ScriptParams) {
   const target = document.documentElement
 
   const constraints = getConstraints()
@@ -43,8 +43,8 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
     if (!prop || !stratObj) return undefined
 
-    const selectors = stratObj.selectors ?? ['colorScheme', 'class']
-    const store = stratObj.store ?? false
+    const selectors = stratObj.selectors ?? defaultSelectors
+    const store = stratObj.store ?? defaultStoreMode
 
     return { prop, stratObj, selectors, store }
   }
@@ -277,14 +277,31 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
   // #region EVENTS - nativeSE - handler ----------------------------------------------------------------
   function handleNativeSE(e: StorageEvent) {
-    if (e.key !== configSK) return
+    // prettier-ignore
+    switch (e.key) {
+      case configSK: {
+        const newValues = jsonToMap(e.newValue ?? '')
+        const prevValues = jsonToMap(e.oldValue ?? '')
 
-    const newValues = jsonToMap(e.newValue ?? '')
-    const prevValues = jsonToMap(e.oldValue ?? '')
+        const { values: sanValues } = sanitizeValues(newValues, prevValues)
+        applySVs(sanValues)
+        dispatchStorageUpdatedCE(JSON.stringify(Object.fromEntries(sanValues)))
+      }; break;
+      case modeSK: {
+        if (!modeProp) return
 
-    const { values: sanValues } = sanitizeValues(newValues, prevValues)
-    applySVs(sanValues)
-    dispatchStorageUpdatedCE(JSON.stringify(Object.fromEntries(sanValues)))
+        const newMode = e.newValue
+        const prevMode = e.oldValue
+
+        const {value: sanMode} = sanitizeValue(modeProp.prop, newMode, prevMode ?? undefined)
+        const currValues = getSVs()
+
+        const newValues = currValues.set(modeProp.prop, sanMode as NonNullable<typeof sanMode>)
+        applySVs(newValues)
+        dispatchStorageUpdatedCE(JSON.stringify(Object.fromEntries(newValues)))
+      }; break;
+      default: break;
+    }
   }
 
   // #region EVENTS - handler ------------------------------------------------------------------------------
@@ -307,7 +324,7 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
       })
     }
 
-    if (listeners.includes('storage')) window.addEventListener('storage', handleNativeSE)
+    if (listeners.includes('storage')) window.addEventListener('storage', handleEvents)
     window.addEventListener(updateStorageCE, handleEvents as EventListener)
   }
 

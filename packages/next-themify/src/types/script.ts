@@ -1,4 +1,4 @@
-import { StaticConfig } from './react'
+import { Listener, Selector, StaticConfig } from './react'
 
 export type ScriptParams = {
   config: StaticConfig
@@ -10,7 +10,11 @@ export type ScriptParams = {
     updateStorageCE: string
     storageUpdatedCE: string
   }
-  listeners: ('attributes' | 'storage')[]
+  behaviour: {
+    listeners: Listener[]
+    defaultStoreMode: boolean
+    defaultSelectors: Selector[]
+  }
 }
 
 export type CustomSE = CustomEvent<{

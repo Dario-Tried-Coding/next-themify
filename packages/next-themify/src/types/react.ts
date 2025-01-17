@@ -8,6 +8,7 @@ export type Props = (string | ExplicitProp)[]
 
 export type ColorScheme = 'light' | 'dark'
 export type Selector = 'class' | 'colorScheme'
+export type Listener = 'attributes' | 'storage'
 
 // #region STRATEGIES - generic -----------------------------------------------------------------------
 type Generic = { type: 'generic' }
