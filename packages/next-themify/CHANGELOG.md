@@ -1,5 +1,11 @@
 # next-themify
 
+## 0.0.4
+
+### Patch Changes
+
+- Bug fixing: null state after Storage config deletion
+
 ## 0.0.3
 
 ### Patch Changes
