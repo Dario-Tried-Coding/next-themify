@@ -24,7 +24,7 @@ export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ ch
     config,
     storageKeys: { configSK, modeSK },
     events: { updateStorageCE, storageUpdatedCE },
-    listeners: customizedListeners ?? ['attributes', 'storage'],
+    listeners: customizedListeners ?? [],
   }
 
   return (

@@ -44,7 +44,7 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
     if (!prop || !stratObj) return undefined
 
     const selectors = stratObj.selectors ?? ['colorScheme', 'class']
-    const store = stratObj.store ?? true
+    const store = stratObj.store ?? false
 
     return { prop, stratObj, selectors, store }
   }
