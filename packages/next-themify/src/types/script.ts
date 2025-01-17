@@ -10,10 +10,14 @@ export type ScriptParams = {
     updateStorageCE: string
     storageUpdatedCE: string
   }
-  behaviour: {
-    listeners: Listener[]
-    defaultStoreMode: boolean
-    defaultSelectors: Selector[]
+  listeners: Listener[]
+  mode: {
+    store: boolean
+    selectors: Selector[]
+  }
+  transitions: {
+    disableOnChange: boolean
+    nonce?: string
   }
 }
 

@@ -1,8 +1,8 @@
 import { ColorScheme } from './types/react'
-import { ScriptParams, CustomSE } from './types/script'
-import { Nullable, NullOr } from './types/utils'
+import { CustomSE, ScriptParams } from './types/script'
+import { NullOr } from './types/utils'
 
-export function script({ config, storageKeys: { configSK, modeSK }, events: { updateStorageCE, storageUpdatedCE }, behaviour: { listeners, defaultSelectors, defaultStoreMode } }: ScriptParams) {
+export function script({ config, storageKeys: { configSK, modeSK }, events: { updateStorageCE, storageUpdatedCE }, listeners, mode: { selectors, store }, transitions: {disableOnChange, nonce} }: ScriptParams) {
   const target = document.documentElement
 
   const constraints = getConstraints()
@@ -42,9 +42,6 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
     const stratObj = Object.values(config).find((stratObj) => stratObj.type === 'mode')
 
     if (!prop || !stratObj) return undefined
-
-    const selectors = stratObj.selectors ?? defaultSelectors
-    const store = stratObj.store ?? defaultStoreMode
 
     return { prop, stratObj, selectors, store }
   }
@@ -89,6 +86,24 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
       return new Map(Object.entries(parsed).filter(([key, value]) => typeof key === 'string' && typeof value === 'string') as [string, string][])
     } catch {
       return new Map<string, string>()
+    }
+  }
+
+  // #region ANIMATIONS - disabler ------------------------------------------------------------------
+  function disableTransitions(nonce?: string) {
+    if (!disableOnChange) return
+
+    const css = document.createElement('style')
+    if (nonce) css.setAttribute('nonce', nonce)
+    css.appendChild(document.createTextNode(`*,*::before,*::after{-webkit-transition:none!important;-moz-transition:none!important;-o-transition:none!important;-ms-transition:none!important;transition:none!important}`))
+    document.head.appendChild(css)
+
+    return () => {
+      ;(() => window.getComputedStyle(document.body))()
+
+      setTimeout(() => {
+        document.head.removeChild(css)
+      }, 1)
     }
   }
 
@@ -147,6 +162,8 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
 
   // #region SVs - applier -------------------------------------------------------------------------------
   function applySVs(values: Map<string, string>) {
+    const enableBack = disableTransitions(nonce)
+
     setSVs(values)
     setTAs(values)
 
@@ -160,6 +177,8 @@ export function script({ config, storageKeys: { configSK, modeSK }, events: { up
       if (selectors.includes('colorScheme')) setCS(RM)
       if (selectors.includes('class')) setMC(RM)
     }
+    
+    enableBack?.()
   }
 
   // #region TA - getter ---------------------------------------------------------------------------------
