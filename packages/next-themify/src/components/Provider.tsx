@@ -1,36 +1,38 @@
 'use client'
 
 import { PropsWithChildren } from 'react'
-import { Config, Props } from '../types'
-import { CONFIG_SK, MODE_SK, UPDATE_STORAGE_CE, STORAGE_UPDATED_CE, DEFAULT_LISTENERS, DEFAULT_STORE_MODE, DEFAULT_SELECTORS } from '../constants'
+import { DEFAULT_BEHAVIOUR, EVENTS, MODE_SK, STATE_SK } from '../constants'
 import { NextThemifyContext } from '../context'
-import { Script } from './Script'
-import { ScriptParams } from '../types/script'
+import { useConfigProcessor } from '../hooks/use-config-processor'
 import { useSyncScript } from '../hooks/use-sync-script'
+import { Config, Props } from '../types'
+import { ScriptParams } from '../types/script'
 import { DeepPartial } from '../types/utils'
+import { Script } from './Script'
 
-interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, Pick<DeepPartial<ScriptParams>, 'storageKeys'> {
+interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, DeepPartial<Pick<ScriptParams, 'storageKeys'>>, Partial<Pick<ScriptParams['defaultBehaviour'], 'observers'>> {
   config: C
-  listeners?: ScriptParams['behaviour']['listeners']
 }
-export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, storageKeys, listeners: customizedListeners }: NextThemifyProviderProps<Ps, C>) => {
-  const configSK = storageKeys?.configSK ?? CONFIG_SK
-  const modeSK = storageKeys?.modeSK ?? MODE_SK
-  const updateStorageCE = UPDATE_STORAGE_CE
-  const storageUpdatedCE = STORAGE_UPDATED_CE
-
-  const [values, setValue] = useSyncScript<Ps, C>({ storageKey: configSK, events: { updateStorageCE, storageUpdatedCE } })
+export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, storageKeys, observers }: NextThemifyProviderProps<Ps, C>) => {
+  const processedConfig = useConfigProcessor({ config, modeHandling: DEFAULT_BEHAVIOUR.mode })
 
   const scriptParams: ScriptParams = {
-    config,
-    storageKeys: { configSK, modeSK },
-    events: { updateStorageCE, storageUpdatedCE },
-    behaviour: {
-      listeners: customizedListeners ?? DEFAULT_LISTENERS,
-      defaultStoreMode: DEFAULT_STORE_MODE,
-      defaultSelectors: DEFAULT_SELECTORS
+    config: processedConfig,
+    storageKeys: {
+      state: storageKeys?.state ?? STATE_SK,
+      mode: storageKeys?.mode ?? MODE_SK,
+    },
+    events: EVENTS,
+    defaultBehaviour: {
+      ...DEFAULT_BEHAVIOUR,
+      observers: observers ?? DEFAULT_BEHAVIOUR.observers,
     },
   }
+
+  const [values, setValue] = useSyncScript<Ps, C>({
+    storageKey: scriptParams.storageKeys.state,
+    events: scriptParams.events
+  })
 
   return (
     <NextThemifyContext.Provider value={{ values, setValue }}>

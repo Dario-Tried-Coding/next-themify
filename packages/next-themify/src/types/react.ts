@@ -8,7 +8,7 @@ export type Props = (string | ExplicitProp)[]
 
 export type ColorScheme = 'light' | 'dark'
 export type Selector = 'class' | 'colorScheme'
-export type Listener = 'attributes' | 'storage'
+export type Observer = 'attributes' | 'storage'
 
 // #region STRATEGIES - generic -----------------------------------------------------------------------
 type Generic = { type: 'generic' }
@@ -65,7 +65,7 @@ type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; s
           ? { customKeys: (V['light'] extends string ? { light: V['light'] } : {}) & (V['dark'] extends string ? { dark: V['dark'] } : {}) & (V['custom'] extends string[] ? { custom: Record<V['custom'][number], ColorScheme> } : {}) }
           : {}))
   )
-type ModeProp = Mode_Mono | Mode_Multi | Mode_System
+export type ModeProp = Mode_Mono | Mode_Multi | Mode_System
 
 // #region CONFIG --------------------------------------------------------------------------------------
 type ExtractProps<Ps extends Props> = Ps[number] extends infer U ? (U extends string ? U : U extends ExplicitProp ? U['prop'] : never) : never

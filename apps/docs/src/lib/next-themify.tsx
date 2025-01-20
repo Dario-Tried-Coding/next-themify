@@ -17,8 +17,7 @@ const config = {
     strategy: 'system',
     enableSystem: true,
     preferred: 'system',
-    fallback: 'light',
-    store: true
+    fallback: 'light'
   },
 } as const satisfies Config<TProps>
 type TConfig = typeof config

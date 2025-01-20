@@ -1,11 +1,28 @@
-import { Listener, Selector } from "./types/react"
+import { ScriptParams } from "./types/script"
 
-export const CONFIG_SK = 'next-themify' as const
+export const STATE_SK = 'next-themify' as const
 export const MODE_SK = 'theme' as const
 
-export const STORAGE_UPDATED_CE = 'storage:updated' as const
-export const UPDATE_STORAGE_CE = 'storage:update' as const
+export const EVENTS = {
+  state: {
+    update: {
+      request: {
+        mono: `${STATE_SK}:state:update:req:mono`,
+        multi: `${STATE_SK}:state:update:req:multi`
+      },
+      notify: `${STATE_SK}:state:update:notify`
+    },
+    sync: {
+      request: `${STATE_SK}:state:sync:req`,
+      response: `${STATE_SK}:state:sync:res`  
+    }
+  }
+} as const satisfies ScriptParams['events']
 
-export const DEFAULT_LISTENERS = [] as const satisfies Listener[]
-export const DEFAULT_STORE_MODE = false as const satisfies boolean
-export const DEFAULT_SELECTORS = [] as const satisfies Selector[]
+export const DEFAULT_BEHAVIOUR = {
+  observers: [],
+  mode: {
+    selectors: [],
+    store: false
+  }
+} as const satisfies ScriptParams['defaultBehaviour']
