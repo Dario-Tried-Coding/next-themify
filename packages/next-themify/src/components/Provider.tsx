@@ -10,7 +10,7 @@ import { ScriptParams } from '../types/script'
 import { DeepPartial } from '../types/utils'
 import { Script } from './Script'
 
-interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, DeepPartial<Pick<ScriptParams, 'storageKeys'>>, Partial<Pick<ScriptParams['defaultBehaviour'], 'observers'>> {
+interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, DeepPartial<Pick<ScriptParams, 'storageKeys'>>, Partial<Pick<DEFAULT_BEHAVIOUR, 'observers'>> {
   config: C
 }
 export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, storageKeys, observers }: NextThemifyProviderProps<Ps, C>) => {
@@ -23,19 +23,16 @@ export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ ch
       mode: storageKeys?.mode ?? MODE_SK,
     },
     events: EVENTS,
-    defaultBehaviour: {
-      ...DEFAULT_BEHAVIOUR,
-      observers: observers ?? DEFAULT_BEHAVIOUR.observers,
-    },
+    observers: observers ?? DEFAULT_BEHAVIOUR.observers,
   }
 
-  const [values, setValue] = useSyncScript<Ps, C>({
-    storageKey: scriptParams.storageKeys.state,
-    events: scriptParams.events
-  })
+  // const [values, setValue] = useSyncScript<Ps, C>({
+  //   storageKey: scriptParams.storageKeys.state,
+  //   events: scriptParams.events
+  // })
 
   return (
-    <NextThemifyContext.Provider value={{ values, setValue }}>
+    <NextThemifyContext.Provider value={null}>
       <Script params={scriptParams} />
       {children}
     </NextThemifyContext.Provider>

@@ -4,7 +4,7 @@ import { NullOr, UndefinedOr } from './utils'
 export type ScriptParams = {
   config: {
     constraints: Record<string, { preferred: string; allowed: string[] }>
-    mode: NullOr<{ prop: string; stratObj: ModeProp; resolvedModes: Record<string, ColorScheme>; selectors: Selector[]; store: boolean }>
+    modeConfig: NullOr<{ prop: string; stratObj: ModeProp; resolvedModes: Record<string, ColorScheme>; selectors: Selector[]; store: boolean }>
   }
   storageKeys: {
     state: string
@@ -18,26 +18,20 @@ export type ScriptParams = {
           multi: string
         }
         notify: string
-      },
+      }
       sync: {
         request: string
         response: string
       }
     }
   }
-  defaultBehaviour: {
-    mode: {
-      store: boolean
-      selectors: Selector[]
-    }
-    observers: Observer[]
-  }
+  observers: Observer[]
 }
 
 export interface Store {
   state: NullOr<Record<string, string>>
   constraints: ScriptParams['config']['constraints']
-  mode: ScriptParams['config']['mode']
+  mode: ScriptParams['config']['modeConfig']
 }
 
 export interface StoreMethods {

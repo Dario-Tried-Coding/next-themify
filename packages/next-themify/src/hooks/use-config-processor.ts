@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { StaticConfig } from '../types/react';
+import { Selector, StaticConfig } from '../types/react';
 import { ScriptParams } from '../types/script';
+import { DEFAULT_BEHAVIOUR } from '../constants';
 
-export const useConfigProcessor = ({ config, modeHandling }: { config: StaticConfig; modeHandling: ScriptParams['defaultBehaviour']['mode'] }) => {
+export const useConfigProcessor = ({ config, modeHandling }: { config: StaticConfig; modeHandling: DEFAULT_BEHAVIOUR['mode'] }) => {
   const constraints = useMemo(() => {
     const constraints: ScriptParams['config']['constraints'] = {}
 
@@ -29,7 +30,7 @@ export const useConfigProcessor = ({ config, modeHandling }: { config: StaticCon
     return constraints
   }, [config])
 
-  const mode = useMemo((): ScriptParams['config']['mode'] => {
+  const modeConfig = useMemo((): ScriptParams['config']['modeConfig'] => {
     const prop = Object.entries(config).find(([prop, stratObj]) => stratObj.type === 'mode')?.[0]
     const stratObj = Object.values(config).find((stratObj) => stratObj.type === 'mode')
 
@@ -38,7 +39,7 @@ export const useConfigProcessor = ({ config, modeHandling }: { config: StaticCon
     const selectors = stratObj.selectors ?? modeHandling.selectors
     const store = stratObj.store ?? modeHandling.store
 
-    const resolvedModes: NonNullable<ScriptParams['config']['mode']>['resolvedModes'] = {}
+    const resolvedModes: NonNullable<ScriptParams['config']['modeConfig']>['resolvedModes'] = {}
     // prettier-ignore
     switch (stratObj?.strategy) {
       case 'mono': resolvedModes[stratObj.key] = stratObj.colorScheme; break;
@@ -54,5 +55,5 @@ export const useConfigProcessor = ({ config, modeHandling }: { config: StaticCon
     return { prop, stratObj, selectors, store, resolvedModes }
   }, [config])
 
-  return { constraints, mode }
+  return { constraints, modeConfig }
 }
