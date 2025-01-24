@@ -6,8 +6,8 @@ type Options = string | string[] | SystemValues
 type ExplicitProp = { prop: string; values: Options }
 export type Props = (string | ExplicitProp)[]
 
-export type ColorScheme = 'light' | 'dark'
-export type Selector = 'class' | 'colorScheme'
+export type ResolvedMode = 'light' | 'dark'
+export type CssSelector = 'class' | 'colorScheme'
 export type Observer = 'attributes' | 'storage'
 
 // #region STRATEGIES - generic -----------------------------------------------------------------------
@@ -17,9 +17,9 @@ type Generic_Multi<V extends string[] = string[]> = Generic & { strategy: 'multi
 type GenericProp = Generic_Mono | Generic_Multi
 
 // #region STRATEGIES - mode -------------------------------------------------------------------------
-type Mode = { type: 'mode'; selectors?: Selector[]; store?: boolean }
-type Mode_Mono<V extends string = string> = Mode & { strategy: 'mono'; key: V; colorScheme: ColorScheme }
-type Mode_Multi<V extends string[] = string[]> = Mode & { strategy: 'multi'; keys: { [K in V[number]]: ColorScheme }; preferred: V[number] }
+type Mode = { type: 'mode'; selectors?: CssSelector[]; store?: boolean }
+type Mode_Mono<V extends string = string> = Mode & { strategy: 'mono'; key: V; colorScheme: ResolvedMode }
+type Mode_Multi<V extends string[] = string[]> = Mode & { strategy: 'multi'; keys: { [K in V[number]]: ResolvedMode }; preferred: V[number] }
 type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; system: undefined; custom: undefined }> = Mode & {
   strategy: 'system'
 } & (
@@ -37,7 +37,7 @@ type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; s
               light?: string
               dark?: string
               system?: string
-              custom?: Record<string, ColorScheme>
+              custom?: Record<string, ResolvedMode>
             }
           }
         : HasKeys<V> extends true
@@ -45,7 +45,7 @@ type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; s
               customKeys: (V['light'] extends string ? { light: V['light'] } : {}) &
                 (V['dark'] extends string ? { dark: V['dark'] } : {}) &
                 (V['system'] extends string ? { system: V['system'] } : {}) &
-                (V['custom'] extends string[] ? { custom: Record<V['custom'][number], ColorScheme> } : {})
+                (V['custom'] extends string[] ? { custom: Record<V['custom'][number], ResolvedMode> } : {})
             }
           : {}))
     | ({
@@ -58,11 +58,11 @@ type Mode_System<V extends SystemValues = { light: undefined; dark: undefined; s
             customKeys?: {
               light?: string
               dark?: string
-              custom?: Record<string, ColorScheme>
+              custom?: Record<string, ResolvedMode>
             }
           }
         : HasKeys<V> extends true
-          ? { customKeys: (V['light'] extends string ? { light: V['light'] } : {}) & (V['dark'] extends string ? { dark: V['dark'] } : {}) & (V['custom'] extends string[] ? { custom: Record<V['custom'][number], ColorScheme> } : {}) }
+          ? { customKeys: (V['light'] extends string ? { light: V['light'] } : {}) & (V['dark'] extends string ? { dark: V['dark'] } : {}) & (V['custom'] extends string[] ? { custom: Record<V['custom'][number], ResolvedMode> } : {}) }
           : {}))
   )
 export type ModeProp = Mode_Mono | Mode_Multi | Mode_System
@@ -100,7 +100,7 @@ export type Values<Ps extends Props, C extends Config<Ps>> = Prettify<{
               | (C[P]['customKeys'] extends { light: string } ? C[P]['customKeys']['light'] : 'light')
               | (C[P]['customKeys'] extends { dark: string } ? C[P]['customKeys']['dark'] : 'dark')
               | (C[P]['customKeys'] extends { system: string } ? C[P]['customKeys']['system'] : 'system')
-              | (C[P]['customKeys'] extends { custom: Record<string, ColorScheme> } ? Keyof<C[P]['customKeys']['custom']> : never)
+              | (C[P]['customKeys'] extends { custom: Record<string, ResolvedMode> } ? Keyof<C[P]['customKeys']['custom']> : never)
           : 'light' | 'dark' | (C[P]['enableSystem'] extends false ? never : 'system')
         : never
 }>

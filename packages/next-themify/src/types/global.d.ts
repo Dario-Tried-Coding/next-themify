@@ -1,10 +1,10 @@
-import { UPDATED_STORAGE_CEK, UPDATE_STORAGE_CEK } from '../constants'
-import { CustomSE } from './script'
+import { LIBRARY_NAME } from '../constants'
+import { Core } from '../core'
+import { UndefinedOr } from './utils'
 
 declare global {
-  interface WindowEventMap {
-    [UPDATE_STORAGE_CEK]: CustomSE
-    [UPDATED_STORAGE_CEK]: CustomSE
+  interface Window {
+    [LIBRARY_NAME]: UndefinedOr<Core>
   }
 }
 

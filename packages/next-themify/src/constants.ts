@@ -1,6 +1,7 @@
-import { Observer, Selector } from './types/react'
+import { Observer, CssSelector } from './types/react'
 import { ScriptParams } from './types/script'
 
+export const LIBRARY_NAME = 'NextThemify' as const
 export const STATE_SK = 'next-themify' as const
 export const MODE_SK = 'theme' as const
 
@@ -23,7 +24,7 @@ export const EVENTS = {
 export type DEFAULT_BEHAVIOUR = {
   observers: Observer[]
   mode: {
-    selectors: Selector[]
+    selectors: CssSelector[]
     store: boolean
   }
 }

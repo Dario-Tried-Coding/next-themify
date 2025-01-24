@@ -1,39 +1,38 @@
 'use client'
 
-import { PropsWithChildren } from 'react'
-import { DEFAULT_BEHAVIOUR, EVENTS, MODE_SK, STATE_SK } from '../constants'
+import { PropsWithChildren, useEffect, useState } from 'react'
+import { DEFAULT_BEHAVIOUR, EVENTS, LIBRARY_NAME } from '../constants'
 import { NextThemifyContext } from '../context'
 import { useConfigProcessor } from '../hooks/use-config-processor'
-import { useSyncScript } from '../hooks/use-sync-script'
-import { Config, Props } from '../types'
-import { ScriptParams } from '../types/script'
-import { DeepPartial } from '../types/utils'
-import { Script } from './Script'
+import { useIsMounted } from '../hooks/use-is-mounted'
+import { Config, Props, Values } from '../types'
+import { StorageKeys } from '../types/core'
+import { NullOr } from '../types/utils'
+import { Core } from '../core'
 
-interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, DeepPartial<Pick<ScriptParams, 'storageKeys'>>, Partial<Pick<DEFAULT_BEHAVIOUR, 'observers'>> {
+interface NextThemifyProviderProps<Ps extends Props, C extends Config<Ps>> extends PropsWithChildren, Partial<Pick<DEFAULT_BEHAVIOUR, 'observers'>> {
   config: C
+  storageKeys: StorageKeys
 }
 export const NextThemifyProvider = <Ps extends Props, C extends Config<Ps>>({ children, config, storageKeys, observers }: NextThemifyProviderProps<Ps, C>) => {
-  const processedConfig = useConfigProcessor({ config, modeHandling: DEFAULT_BEHAVIOUR.mode })
+  const {constraints, modeConfig} = useConfigProcessor({ config, modeHandling: DEFAULT_BEHAVIOUR.mode })
 
-  const scriptParams: ScriptParams = {
-    config: processedConfig,
-    storageKeys: {
-      state: storageKeys?.state ?? STATE_SK,
-      mode: storageKeys?.mode ?? MODE_SK,
-    },
-    events: EVENTS,
-    observers: observers ?? DEFAULT_BEHAVIOUR.observers,
-  }
+  const [values, setValues] = useState<Values<Ps, C> | null>(null)
+  // const isMounted = useIsMounted()
 
-  // const [values, setValue] = useSyncScript<Ps, C>({
-  //   storageKey: scriptParams.storageKeys.state,
-  //   events: scriptParams.events
-  // })
+  // useEffect(() => {
+  //   if (!isMounted) return
+
+  //   window.addEventListener(EVENTS.state.sync.response, ((e: CustomEvent<{ payload: NullOr<string> }>) => {
+  //     console.log('payload', e.detail)
+  //   }) as EventListener)
+
+  //   window.dispatchEvent(new CustomEvent(EVENTS.state.sync.request))
+  // }, [isMounted])
 
   return (
-    <NextThemifyContext.Provider value={null}>
-      <Script params={scriptParams} />
+    <NextThemifyContext.Provider value={{values}}>
+      {/* <Script /> */}
       {children}
     </NextThemifyContext.Provider>
   )

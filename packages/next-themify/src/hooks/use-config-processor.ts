@@ -1,27 +1,28 @@
 import { useMemo } from 'react';
-import { Selector, StaticConfig } from '../types/react';
-import { ScriptParams } from '../types/script';
 import { DEFAULT_BEHAVIOUR } from '../constants';
+import { StaticConfig } from '../types/react';
+import { ScriptParams } from '../types/script';
+import { Constraints } from '../types/core';
 
 export const useConfigProcessor = ({ config, modeHandling }: { config: StaticConfig; modeHandling: DEFAULT_BEHAVIOUR['mode'] }) => {
   const constraints = useMemo(() => {
-    const constraints: ScriptParams['config']['constraints'] = {}
+    const constraints: Constraints = new Map()
 
     // prettier-ignore
     for (const [prop, stratObj] of Object.entries(config)) {
       switch (stratObj.strategy) {
-        case 'mono': constraints[prop] = { allowed: [stratObj.key], preferred: stratObj.key }; break;
-        case 'multi': constraints[prop] = { allowed: Array.isArray(stratObj.keys) ? stratObj.keys : Object.keys(stratObj.keys), preferred: stratObj.preferred }; break;
+        case 'mono': constraints.set(prop, { available: new Set([stratObj.key]), base: stratObj.key }); break;
+        case 'multi': constraints.set(prop, { available: new Set(Array.isArray(stratObj.keys) ? stratObj.keys : Object.keys(stratObj.keys)), base: stratObj.preferred }); break;
         case 'system': {
-          constraints[prop] = {
-            allowed: [
+          constraints.set(prop, {
+            available: new Set([
               stratObj.customKeys?.light ?? 'light',
               stratObj.customKeys?.dark ?? 'dark',
               ...(stratObj.enableSystem !== false ? [stratObj.customKeys?.system ?? 'system'] : []),
               ...(stratObj.customKeys?.custom ? Object.keys(stratObj.customKeys.custom) : []),
-            ],
-            preferred: stratObj.preferred,
-          }
+            ]),
+            base: stratObj.preferred,
+          })
         }; break;
         default: break;
       }

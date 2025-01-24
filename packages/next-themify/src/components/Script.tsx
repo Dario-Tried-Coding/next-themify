@@ -1,11 +1,8 @@
-import { script } from '../script'
-import { ScriptParams } from '../types/script'
+import { LIBRARY_NAME } from '../constants'
 
-interface ScriptProps {
-  params: ScriptParams
-}
-export const Script = ({params}: ScriptProps) => {
-  const stringParams = JSON.stringify(params satisfies ScriptParams)
+interface ScriptProps {}
+export const Script = ({}: ScriptProps) => {
+  const script = () => window[LIBRARY_NAME]?.init()
 
-  return <script dangerouslySetInnerHTML={{ __html: `(${script.toString()})(${stringParams})` }} />
+  return <script dangerouslySetInnerHTML={{ __html: `(${script.toString()})()` }} />
 }
